@@ -2,8 +2,10 @@ process SAMPLESHEET_CHECK {
     tag "$samplesheet"
     label 'process_single'
 
-    conda "conda-forge::python=3.8.3"
-    container "quay.io/biocontainers/python:3.8.3"
+    conda "conda-forge::r-base=4.0.2"
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/mulled-v2-03bfeb32fe80910c231f630d4262b83677c8c0f4:f4bb19b68e66de27e4c64306f951d5ff11919931-0' :
+        'biocontainers/mulled-v2-03bfeb32fe80910c231f630d4262b83677c8c0f4:f4bb19b68e66de27e4c64306f951d5ff11919931-0' }"
 
     input:
     path samplesheet
@@ -17,11 +19,11 @@ process SAMPLESHEET_CHECK {
 
     script:
     """
-    check_samplesheet.py $samplesheet samplesheet.valid.csv $params.use_control
+    check_samplesheet.r $samplesheet samplesheet.valid.csv $params.use_control
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        python: \$(python --version | grep -E -o \"([0-9]{1,}\\.)+[0-9]{1,}\")
+        R: \$(R --version | head -n 1)
     END_VERSIONS
     """
 }

@@ -196,7 +196,7 @@ workflow CUTANDRUN {
         INPUT_CHECK.out.reads
         .map {
             meta, fastq ->
-                meta.id = meta.id.split("_")[0..-2].join("_")
+/*                meta.id = meta.id.split("_")[0..-2].join("_") */
                 [ meta, fastq ] }
         .groupTuple(by: [0])
         .branch {
