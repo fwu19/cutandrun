@@ -25,14 +25,11 @@ checkPathParamList = [
 ]
 for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
 
-if(params.normalisation_mode == "Spikein") {
-    // Check spike-in only if it is enabled
-    checkPathParamList = [
+checkPathParamList = [
         params.spikein_bowtie2,
         params.spikein_fasta
-    ]
-    for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
-}
+]
+for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
 
 // Check mandatory parameters that cannot be checked in the groovy lib as we want a channel for them
 if (params.input) { ch_input = file(params.input) } else { exit 1, "Input samplesheet not specified!" }
@@ -434,14 +431,9 @@ workflow CUTANDRUN {
 
     ch_bedgraph               = Channel.empty()
     ch_bigwig                 = Channel.empty()
-    ch_seacr_peaks            = Channel.empty()
-    ch_macs2_peaks            = Channel.empty()
-    ch_peaks_primary          = Channel.empty()
-    ch_peaks_secondary        = Channel.empty()
-    ch_peaks_summits          = Channel.empty()
-    ch_consensus_peaks        = Channel.empty()
-    ch_consensus_peaks_unfilt = Channel.empty()
-    if(params.run_peak_calling) {
+
+    // generate bedgraph and bigwig
+    if(params.run_alignment) {
         /*
         * SUBWORKFLOW: Convert BAM files to bedgraph/bigwig and apply configured normalisation strategy
         */
@@ -476,7 +468,17 @@ workflow CUTANDRUN {
         .set { ch_bam_control }
         //ch_bam_target | view
         //ch_bam_control | view
+    }
 
+    ch_seacr_peaks            = Channel.empty()
+    ch_macs2_peaks            = Channel.empty()
+    ch_peaks_primary          = Channel.empty()
+    ch_peaks_secondary        = Channel.empty()
+    ch_peaks_summits          = Channel.empty()
+    ch_consensus_peaks        = Channel.empty()
+    ch_consensus_peaks_unfilt = Channel.empty()
+
+    if(params.run_peak_calling) {
         if(params.use_control) {
             /*
             * MODULE: Call peaks using SEACR with IgG control
