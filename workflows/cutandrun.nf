@@ -146,8 +146,10 @@ include { CAT_FASTQ                                                    } from ".
 include { PRESEQ_LCEXTRAP                                              } from "../modules/nf-core/preseq/lcextrap/main"
 include { SEACR_CALLPEAK as SEACR_CALLPEAK_IGG                         } from "../modules/nf-core/seacr/callpeak/main"
 include { SEACR_CALLPEAK as SEACR_CALLPEAK_NOIGG                       } from "../modules/nf-core/seacr/callpeak/main"
-include { MACS2_CALLPEAK as MACS2_CALLPEAK_IGG                         } from "../modules/nf-core/macs2/callpeak/main"
-include { MACS2_CALLPEAK as MACS2_CALLPEAK_NOIGG                       } from "../modules/nf-core/macs2/callpeak/main"
+include { MACS2_CALLPEAK as MACS2_CALLPEAK_IGG_NARROW                         } from "../modules/nf-core/macs2/callpeak/main"
+include { MACS2_CALLPEAK as MACS2_CALLPEAK_NOIGG_NARROW                       } from "../modules/nf-core/macs2/callpeak/main"
+include { MACS2_CALLPEAK as MACS2_CALLPEAK_IGG_BROAD                         } from "../modules/nf-core/macs2/callpeak/main"
+include { MACS2_CALLPEAK as MACS2_CALLPEAK_NOIGG_BROAD                       } from "../modules/nf-core/macs2/callpeak/main"
 include { DEEPTOOLS_COMPUTEMATRIX as DEEPTOOLS_COMPUTEMATRIX_GENE      } from "../modules/nf-core/deeptools/computematrix/main"
 include { DEEPTOOLS_COMPUTEMATRIX as DEEPTOOLS_COMPUTEMATRIX_PEAKS     } from "../modules/nf-core/deeptools/computematrix/main"
 include { DEEPTOOLS_PLOTHEATMAP as DEEPTOOLS_PLOTHEATMAP_GENE          } from "../modules/nf-core/deeptools/plotheatmap/main"
@@ -539,16 +541,56 @@ workflow CUTANDRUN {
                 // EXAMPLE CHANNEL STRUCT: [[META], TARGET_BAM, CONTROL_BAM]
                 //ch_bam_paired | view
 
-                MACS2_CALLPEAK_IGG (
+                MACS2_CALLPEAK_IGG_NARROW (
                     ch_bam_paired,
                     params.macs_gsize
                 )
-                ch_macs2_peaks       = MACS2_CALLPEAK_IGG.out.peak
-                ch_peaks_summits     = MACS2_CALLPEAK_IGG.out.bed
-                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_IGG.out.versions)
+                ch_macs2_peaks_igg_narrow       = MACS2_CALLPEAK_IGG_NARROW.out.peak
+                ch_peaks_summits_igg_narrow     = MACS2_CALLPEAK_IGG_NARROW.out.bed
+                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_IGG_NARROW.out.versions)
+
+                MACS2_CALLPEAK_IGG_BROAD (
+                    ch_bam_paired,
+                    params.macs_gsize
+                )
+                ch_macs2_peaks_igg_broad       = MACS2_CALLPEAK_IGG_BROAD.out.peak
+                ch_peaks_summits_igg_broad     = MACS2_CALLPEAK_IGG_BROAD.out.bed
+                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_IGG_BROAD.out.versions)
+
                 // EXAMPLE CHANNEL STRUCT: [[META], BED]
                 //MACS2_CALLPEAK_IGG.out.peak | view
             }
+
+            if('macs2' in callers) {
+
+                /*
+                * CHANNEL: Add fake control channel
+                */
+                ch_bam_target.map{ row-> [ row[0], row[1], [] ] }
+                .set { ch_samtools_bam_target_fctrl }
+                // EXAMPLE CHANNEL STRUCT: [[META], BAM, FAKE_CTRL]
+                //ch_samtools_bam_target_fctrl | view
+
+                MACS2_CALLPEAK_NOIGG_NARROW (
+                    ch_samtools_bam_target_fctrl,
+                    params.macs_gsize
+                )
+                ch_macs2_peaks_noigg_narrow       = MACS2_CALLPEAK_NOIGG_NARROW.out.peak
+                ch_peaks_summits_noigg_narrow     = MACS2_CALLPEAK_NOIGG_NARROW.out.bed
+                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_NOIGG_NARROW.out.versions)
+
+                MACS2_CALLPEAK_NOIGG_BROAD (
+                    ch_samtools_bam_target_fctrl,
+                    params.macs_gsize
+                )
+                ch_macs2_peaks_noigg_broad       = MACS2_CALLPEAK_NOIGG_BROAD.out.peak
+                ch_peaks_summits_noigg_broad     = MACS2_CALLPEAK_NOIGG_BROAD.out.bed
+                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_NOIGG_NARROW.out.versions)
+
+                // EXAMPLE CHANNEL STRUCT: [[META], BED]
+                // MACS2_CALLPEAK_NOIGG.out.peak | view
+            }
+
         }
         else {
             /*
@@ -567,7 +609,7 @@ workflow CUTANDRUN {
                     ch_bedgraph_target_fctrl,
                     params.seacr_peak_threshold
                 )
-                ch_seacr_peaks       = SEACR_CALLPEAK_NOIGG.out.bed
+                ch_seacr_peaks_noigg       = SEACR_CALLPEAK_NOIGG.out.bed
                 ch_software_versions = ch_software_versions.mix(SEACR_CALLPEAK_NOIGG.out.versions)
                 // EXAMPLE CHANNEL STRUCT: [[META], BED]
                 //SEACR_NO_IGG.out.bed | view
@@ -582,13 +624,22 @@ workflow CUTANDRUN {
                 // EXAMPLE CHANNEL STRUCT: [[META], BAM, FAKE_CTRL]
                 //ch_samtools_bam_target_fctrl | view
 
-                MACS2_CALLPEAK_NOIGG (
+                MACS2_CALLPEAK_NOIGG_NARROW (
                     ch_samtools_bam_target_fctrl,
                     params.macs_gsize
                 )
-                ch_macs2_peaks       = MACS2_CALLPEAK_NOIGG.out.peak
-                ch_peaks_summits     = MACS2_CALLPEAK_NOIGG.out.bed
-                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_NOIGG.out.versions)
+                ch_macs2_peaks_narrow       = MACS2_CALLPEAK_NOIGG_NARROW.out.peak
+                ch_peaks_summits_narrow     = MACS2_CALLPEAK_NOIGG_NARROW.out.bed
+                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_NOIGG_NARROW.out.versions)
+
+                MACS2_CALLPEAK_NOIGG_BROAD (
+                    ch_samtools_bam_target_fctrl,
+                    params.macs_gsize
+                )
+                ch_macs2_peaks_broad       = MACS2_CALLPEAK_NOIGG_BROAD.out.peak
+                ch_peaks_summits_broad     = MACS2_CALLPEAK_NOIGG_BROAD.out.bed
+                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_NOIGG_BROAD.out.versions)
+
                 // EXAMPLE CHANNEL STRUCT: [[META], BED]
                 // MACS2_CALLPEAK_NOIGG.out.peak | view
             }
