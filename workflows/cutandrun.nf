@@ -499,11 +499,31 @@ workflow CUTANDRUN {
                     ch_bedgraph_paired,
                     params.seacr_peak_threshold
                 )
-                ch_seacr_peaks       = SEACR_CALLPEAK_IGG.out.bed
+                ch_seacr_peaks_igg       = SEACR_CALLPEAK_IGG.out.bed
                 ch_software_versions = ch_software_versions.mix(SEACR_CALLPEAK_IGG.out.versions)
                 // EXAMPLE CHANNEL STRUCT: [[META], BED]
                 //SEACR_CALLPEAK_IGG.out.bed | view
             }
+
+            if('seacr' in callers) {
+                /*
+                * CHANNEL: Add fake control channel
+                */
+                ch_bedgraph_target.map{ row-> [ row[0], row[1], [] ] }
+                .set { ch_bedgraph_target_fctrl }
+                // EXAMPLE CHANNEL STRUCT: [[META], BED, FAKE_CTRL]
+                // ch_bedgraph_target_fctrl | view
+
+                SEACR_CALLPEAK_NOIGG (
+                    ch_bedgraph_target_fctrl,
+                    params.seacr_peak_threshold
+                )
+                ch_seacr_peaks_noigg       = SEACR_CALLPEAK_NOIGG.out.bed
+                ch_software_versions = ch_software_versions.mix(SEACR_CALLPEAK_NOIGG.out.versions)
+                // EXAMPLE CHANNEL STRUCT: [[META], BED]
+                //SEACR_NO_IGG.out.bed | view
+            }
+
 
             if('macs2' in callers) {
                 /*
