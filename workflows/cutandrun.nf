@@ -112,6 +112,9 @@ include { AWK as AWK_EXTRACT_SUMMITS } from "../modules/local/linux/awk"
 include { SAMTOOLS_CUSTOMVIEW        } from "../modules/local/samtools_custom_view"
 include { FRAG_LEN_HIST              } from "../modules/local/python/frag_len_hist"
 include { MULTIQC                    } from "../modules/local/multiqc"
+include { BEDTOOLS_INTERSECT as SEACR_PEAKS_BEDTOOLS_INTERSECT   } from "../modules/nf-core/bedtools/intersect/main"
+include { BEDTOOLS_INTERSECT as MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT   } from "../modules/nf-core/bedtools/intersect/main"
+include { BEDTOOLS_INTERSECT as MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT   } from "../modules/nf-core/bedtools/intersect/main"
 
 /*
  * SUBWORKFLOWS
@@ -438,7 +441,8 @@ workflow CUTANDRUN {
     ch_bedgraph               = Channel.empty()
     ch_bigwig                 = Channel.empty()
     ch_seacr_peaks            = Channel.empty()
-    ch_macs2_peaks            = Channel.empty()
+    ch_macs2_peaks_narrow            = Channel.empty()
+    ch_macs2_peaks_broad            = Channel.empty()
     ch_peaks_primary          = Channel.empty()
     ch_peaks_secondary        = Channel.empty()
     ch_peaks_summits          = Channel.empty()
@@ -526,6 +530,24 @@ workflow CUTANDRUN {
                 //SEACR_NO_IGG.out.bed | view
             }
 
+            if('seacr' in callers) {
+                /*
+                * CHANNEL: mix igg and noigg SEACR peaks
+                */
+
+                ch_seacr_peaks_intersect = ch_seacr_peaks_igg
+                    .join (ch_seacr_peaks_noigg)
+                    .map {row -> [row[0], row[1], row[2]]}
+
+                SEACR_PEAKS_BEDTOOLS_INTERSECT(
+                    ch_seacr_peaks_intersect,
+                    [[:],[]]
+                )
+                ch_seacr_peaks = SEACR_PEAKS_BEDTOOLS_INTERSECT.out.bed
+                ch_software_versions = ch_software_versions.mix(SEACR_PEAKS_BEDTOOLS_INTERSECT.out.versions)
+                // EXAMPLE CHANNEL STRUCT: [[META], BED]
+                //SEACR_PEAKS_BEDTOOLS_INTERSECT.out.bed | view
+            }
 
             if('macs2' in callers) {
                 /*
@@ -591,6 +613,43 @@ workflow CUTANDRUN {
                 // MACS2_CALLPEAK_NOIGG.out.peak | view
             }
 
+            if('macs2' in callers) {
+                /*
+                * CHANNEL: mix igg and noigg MACS2 narrow peaks
+                */
+
+                ch_macs2_peaks_narrow_intersect = ch_macs2_peaks_igg_narrow
+                    .join (ch_macs2_peaks_noigg_narrow)
+                    .map {row -> [row[0], row[1], row[2]]}
+
+                MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT(
+                    ch_macs2_peaks_narrow_intersect,
+                    [[:],[]]
+                )
+                ch_macs2_peaks_narrow = MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.bed
+                ch_software_versions = ch_software_versions.mix(MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.versions)
+                // EXAMPLE CHANNEL STRUCT: [[META], BED]
+                //MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.bed | view
+
+                /*
+                * CHANNEL: mix igg and noigg MACS2 broad peaks
+                */
+
+                ch_macs2_peaks_broad_intersect = ch_macs2_peaks_noigg_broad
+                    .join (ch_macs2_peaks_igg_broad)
+                    .map {row -> [row[0], row[1], row[2]]}
+
+                MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT(
+                    ch_macs2_peaks_broad_intersect,
+                    [[:],[]]
+                )
+                ch_macs2_peaks_broad = MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.bed
+                ch_software_versions = ch_software_versions.mix(MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.versions)
+                // EXAMPLE CHANNEL STRUCT: [[META], BED]
+                //MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.bed | view
+
+            }
+
         }
         else {
             /*
@@ -609,7 +668,7 @@ workflow CUTANDRUN {
                     ch_bedgraph_target_fctrl,
                     params.seacr_peak_threshold
                 )
-                ch_seacr_peaks_noigg       = SEACR_CALLPEAK_NOIGG.out.bed
+                ch_seacr_peaks       = SEACR_CALLPEAK_NOIGG.out.bed
                 ch_software_versions = ch_software_versions.mix(SEACR_CALLPEAK_NOIGG.out.versions)
                 // EXAMPLE CHANNEL STRUCT: [[META], BED]
                 //SEACR_NO_IGG.out.bed | view
