@@ -129,7 +129,7 @@ include { MARK_DUPLICATES_PICARD as DEDUPLICATE_PICARD     } from "../subworkflo
 include { CONSENSUS_PEAKS                                  } from "../subworkflows/local/consensus_peaks"
 include { CONSENSUS_PEAKS as CONSENSUS_PEAKS_ALL           } from "../subworkflows/local/consensus_peaks"
 include { EXTRACT_FRAGMENTS                                } from "../subworkflows/local/extract_fragments"
-include { PREPARE_PEAKCALLING                              } from "../subworkflows/local/prepare_peakcalling"
+include { COMPUTE_GENOMECOVERAGE                           } from "../subworkflows/local/compute_genomecoverage"
 include { DEEPTOOLS_QC                                     } from "../subworkflows/local/deeptools_qc"
 include { PEAK_QC                                          } from "../subworkflows/local/peak_qc"
 include { SAMTOOLS_VIEW_SORT_STATS as FILTER_READS         } from "../subworkflows/local/samtools_view_sort_stats"
@@ -356,7 +356,12 @@ workflow CUTANDRUN {
     /*
      * SUBWORKFLOW: Mark duplicates on all samples
      */
+    ch_samtools_bam_markdup = Channel.empty()
+    ch_samtools_bai_markdup = Channel.empty()
+    ch_samtools_bam_dedup = Channel.empty()
+    ch_samtools_bai_dedup = Channel.empty()
     ch_markduplicates_metrics = Channel.empty()
+
     if (params.run_mark_dups) {
         MARK_DUPLICATES_PICARD (
             ch_samtools_bam,
@@ -365,11 +370,11 @@ workflow CUTANDRUN {
             PREPARE_GENOME.out.fasta.collect(),
             PREPARE_GENOME.out.fasta_index.collect()
         )
-        ch_samtools_bam           = MARK_DUPLICATES_PICARD.out.bam
-        ch_samtools_bai           = MARK_DUPLICATES_PICARD.out.bai
-        ch_samtools_stats         = MARK_DUPLICATES_PICARD.out.stats
-        ch_samtools_flagstat      = MARK_DUPLICATES_PICARD.out.flagstat
-        ch_samtools_idxstats      = MARK_DUPLICATES_PICARD.out.idxstats
+        ch_samtools_bam_markdup           = MARK_DUPLICATES_PICARD.out.bam
+        ch_samtools_bai_markdup           = MARK_DUPLICATES_PICARD.out.bai
+        ch_samtools_stats_markdup         = MARK_DUPLICATES_PICARD.out.stats
+        ch_samtools_flagstat_markdup      = MARK_DUPLICATES_PICARD.out.flagstat
+        ch_samtools_idxstats_markdup      = MARK_DUPLICATES_PICARD.out.idxstats
         ch_markduplicates_metrics = MARK_DUPLICATES_PICARD.out.metrics
         ch_software_versions      = ch_software_versions.mix(MARK_DUPLICATES_PICARD.out.versions)
     }
@@ -387,11 +392,11 @@ workflow CUTANDRUN {
             PREPARE_GENOME.out.fasta.collect(),
             PREPARE_GENOME.out.fasta_index.collect()
         )
-        ch_samtools_bam      = DEDUPLICATE_PICARD.out.bam
-        ch_samtools_bai      = DEDUPLICATE_PICARD.out.bai
-        ch_samtools_stats    = DEDUPLICATE_PICARD.out.stats
-        ch_samtools_flagstat = DEDUPLICATE_PICARD.out.flagstat
-        ch_samtools_idxstats = DEDUPLICATE_PICARD.out.idxstats
+        ch_samtools_bam_dedup      = DEDUPLICATE_PICARD.out.bam
+        ch_samtools_bai_dedup      = DEDUPLICATE_PICARD.out.bai
+        ch_samtools_stats_dedup    = DEDUPLICATE_PICARD.out.stats
+        ch_samtools_flagstat_dedup = DEDUPLICATE_PICARD.out.flagstat
+        ch_samtools_idxstats_dedup = DEDUPLICATE_PICARD.out.idxstats
         ch_software_versions = ch_software_versions.mix(DEDUPLICATE_PICARD.out.versions)
     }
     //EXAMPLE CHANNEL STRUCT: [[id:h3k27me3_R1, group:h3k27me3, replicate:1, single_end:false, is_control:false], [BAM]]
@@ -448,24 +453,32 @@ workflow CUTANDRUN {
     ch_peaks_summits          = Channel.empty()
     ch_consensus_peaks        = Channel.empty()
     ch_consensus_peaks_unfilt = Channel.empty()
-    if(params.run_peak_calling) {
+    if(params.run_alignment && params.run_read_filter) {
         /*
-        * SUBWORKFLOW: Convert BAM files to bedgraph/bigwig and apply configured normalisation strategy
+        * SUBWORKFLOW: Convert BAM files to bedgraph/bigwig and apply spikein normalisation if required
         */
-        PREPARE_PEAKCALLING(
-            ch_samtools_bam,
-            ch_samtools_bai,
+        COMPUTE_GENOMECOVERAGE(
+            ch_samtools_bam_markdup,
+            ch_samtools_bai_markdup,
+            ch_samtools_bam_dedup,
+            ch_samtools_bai_dedup,
             PREPARE_GENOME.out.chrom_sizes.collect(),
             ch_dummy_file,
             params.normalisation_mode,
             ch_metadata_bt2_spikein
         )
-        ch_bedgraph          = PREPARE_PEAKCALLING.out.bedgraph
-        ch_bigwig            = PREPARE_PEAKCALLING.out.bigwig
-        ch_software_versions = ch_software_versions.mix(PREPARE_PEAKCALLING.out.versions)
+        ch_bedgraph_markdup          = COMPUTE_GENOMECOVERAGE.out.bedgraph_markdup_unnorm
+        ch_bedgraph_dedup          = COMPUTE_GENOMECOVERAGE.out.bedgraph_dedup_unnorm
+        //ch_bigwig_markdup            = COMPUTE_GENOMECOVERAGE_MARKDUP.out.bigwig_cpm
+        ch_software_versions = ch_software_versions.mix(COMPUTE_GENOMECOVERAGE.out.versions)
+
+    }
+
+    if(params.run_peak_calling) {
 
         /*
-         * CHANNEL: Separate bedgraphs into target/control
+         * CHANNEL: Separate bedgraphs into target/control for SEACR
+         * for SEACR, use markdup for target and dedup for control
          */
         ch_bedgraph.filter { it -> it[0].is_control == false }
         .set { ch_bedgraph_target }
@@ -474,12 +487,14 @@ workflow CUTANDRUN {
         //ch_bedgraph_target | view
         //ch_bedgraph_control | view
 
+
         /*
         * CHANNEL: Separate bams into target/control
+        * for MACS2 use markdup for both target and control
         */
-        ch_samtools_bam.filter { it -> it[0].is_control == false }
+        ch_samtools_bam_markdup.filter { it -> it[0].is_control == false }
         .set { ch_bam_target }
-        ch_samtools_bam.filter { it -> it[0].is_control == true }
+        ch_samtools_bam_markdup.filter { it -> it[0].is_control == true }
         .set { ch_bam_control }
         //ch_bam_target | view
         //ch_bam_control | view
