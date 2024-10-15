@@ -29,10 +29,9 @@ params.blacklist = WorkflowMain.getGenomeAttribute(params, 'blacklist')
 ========================================================================================
 */
 
-if(params.normalisation_mode == "Spikein") {
-    params.spikein_fasta   = WorkflowMain.getGenomeAttributeSpikeIn(params, 'fasta')
-    params.spikein_bowtie2 = WorkflowMain.getGenomeAttributeSpikeIn(params, 'bowtie2')
-}
+params.spikein_fasta   = WorkflowMain.getGenomeAttributeSpikeIn(params, 'fasta')
+params.spikein_bowtie2 = WorkflowMain.getGenomeAttributeSpikeIn(params, 'bowtie2')
+
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

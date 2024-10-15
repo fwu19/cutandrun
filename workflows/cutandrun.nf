@@ -25,14 +25,13 @@ checkPathParamList = [
 ]
 for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
 
-if(params.normalisation_mode == "Spikein") {
-    // Check spike-in only if it is enabled
-    checkPathParamList = [
+// Check spike-in
+checkPathParamList = [
         params.spikein_bowtie2,
         params.spikein_fasta
-    ]
-    for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
-}
+]
+for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
+
 
 // Check mandatory parameters that cannot be checked in the groovy lib as we want a channel for them
 if (params.input) { ch_input = file(params.input) } else { exit 1, "Input samplesheet not specified!" }
@@ -441,6 +440,7 @@ workflow CUTANDRUN {
     ch_bedgraph               = Channel.empty()
     ch_bigwig                 = Channel.empty()
     ch_seacr_peaks            = Channel.empty()
+    ch_macs2_peaks            = Channel.empty()
     ch_macs2_peaks_narrow            = Channel.empty()
     ch_macs2_peaks_broad            = Channel.empty()
     ch_peaks_primary          = Channel.empty()
@@ -543,10 +543,10 @@ workflow CUTANDRUN {
                     ch_seacr_peaks_intersect,
                     [[:],[]]
                 )
-                ch_seacr_peaks = SEACR_PEAKS_BEDTOOLS_INTERSECT.out.bed
+                ch_seacr_peaks = SEACR_PEAKS_BEDTOOLS_INTERSECT.out.intersect
                 ch_software_versions = ch_software_versions.mix(SEACR_PEAKS_BEDTOOLS_INTERSECT.out.versions)
                 // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                //SEACR_PEAKS_BEDTOOLS_INTERSECT.out.bed | view
+                //SEACR_PEAKS_BEDTOOLS_INTERSECT.out.intersect | view
             }
 
             if('macs2' in callers) {
@@ -626,10 +626,10 @@ workflow CUTANDRUN {
                     ch_macs2_peaks_narrow_intersect,
                     [[:],[]]
                 )
-                ch_macs2_peaks_narrow = MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.bed
+                ch_macs2_peaks_narrow = MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.intersect
                 ch_software_versions = ch_software_versions.mix(MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.versions)
                 // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                //MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.bed | view
+                //MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.intersect | view
 
                 /*
                 * CHANNEL: mix igg and noigg MACS2 broad peaks
@@ -643,10 +643,10 @@ workflow CUTANDRUN {
                     ch_macs2_peaks_broad_intersect,
                     [[:],[]]
                 )
-                ch_macs2_peaks_broad = MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.bed
+                ch_macs2_peaks_broad = MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.intersect
                 ch_software_versions = ch_software_versions.mix(MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.versions)
                 // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                //MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.bed | view
+                //MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.intersect | view
 
             }
 
