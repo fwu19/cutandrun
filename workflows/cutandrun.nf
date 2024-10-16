@@ -200,7 +200,6 @@ workflow CUTANDRUN {
         INPUT_CHECK.out.reads
         .map {
             meta, fastq ->
-                meta.id = meta.id.split("_")[0..-2].join("_")
                 [ meta, fastq ] }
         .groupTuple(by: [0])
         .branch {
@@ -511,7 +510,7 @@ workflow CUTANDRUN {
                 /*
                 * CHANNEL: Create target/control pairings
                 */
-                ch_bedgraph_control.map{ row -> [row[0].control_group + "_" + row[0].replicate, row] }
+                ch_bedgraph_control.map{ row -> [row[0].control_group, row] }
                 .cross( ch_bedgraph_target.map{ row -> [row[0].control_group, row] } )
                 .map {
                     row ->
@@ -572,7 +571,7 @@ workflow CUTANDRUN {
                 /*
                 * CHANNEL: Create target/control pairings
                 */
-                ch_bam_control.map{ row -> [row[0].control_group + "_" + row[0].replicate, row] }
+                ch_bam_control.map{ row -> [row[0].control_group, row] }
                 .cross( ch_bam_target.map{ row -> [row[0].control_group, row] } )
                 .map {
                     row ->
