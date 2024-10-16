@@ -480,10 +480,12 @@ workflow CUTANDRUN {
          * CHANNEL: Separate bedgraphs into target/control for SEACR
          * for SEACR, use markdup for target and dedup for control
          */
-        ch_bedgraph.filter { it -> it[0].is_control == false }
-        .set { ch_bedgraph_target }
-        ch_bedgraph.filter { it -> it[0].is_control == true }
-        .set { ch_bedgraph_control }
+        ch_bedgraph_markdup
+            .filter { it -> it[0].is_control == false }
+            .set { ch_bedgraph_target }
+        ch_bedgraph_dedup
+            .filter { it -> it[0].is_control == true }
+            .set { ch_bedgraph_control }
         //ch_bedgraph_target | view
         //ch_bedgraph_control | view
 
@@ -492,10 +494,12 @@ workflow CUTANDRUN {
         * CHANNEL: Separate bams into target/control
         * for MACS2 use markdup for both target and control
         */
-        ch_samtools_bam_markdup.filter { it -> it[0].is_control == false }
-        .set { ch_bam_target }
-        ch_samtools_bam_markdup.filter { it -> it[0].is_control == true }
-        .set { ch_bam_control }
+        ch_samtools_bam_markdup
+            .filter { it -> it[0].is_control == false }
+            .set { ch_bam_target }
+        ch_samtools_bam_markdup
+            .filter { it -> it[0].is_control == true }
+            .set { ch_bam_control }
         //ch_bam_target | view
         //ch_bam_control | view
 
