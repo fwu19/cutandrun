@@ -12,6 +12,7 @@ use_control <- as.logical(args[3])
 
 ss <- read.csv(in_csv)
 
+
 ss %>%
     dplyr::relocate(id, group, replicate, control, single_end, fastq_1, fastq_2, is_control) %>%
     write.table(out_csv, sep = ',', quote = F, row.names = F)
