@@ -110,7 +110,7 @@ include { IGV_SESSION                } from "../modules/local/python/igv_session
 include { AWK as AWK_EXTRACT_SUMMITS } from "../modules/local/linux/awk"
 include { SAMTOOLS_CUSTOMVIEW        } from "../modules/local/samtools_custom_view"
 include { FRAG_LEN_HIST              } from "../modules/local/python/frag_len_hist"
-include { MULTIQC                    } from "../modules/local/multiqc"
+//include { MULTIQC                    } from "../modules/local/multiqc"
 include { BEDTOOLS_INTERSECT as SEACR_PEAKS_BEDTOOLS_INTERSECT   } from "../modules/nf-core/bedtools/intersect/main"
 include { BEDTOOLS_INTERSECT as MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT   } from "../modules/nf-core/bedtools/intersect/main"
 include { BEDTOOLS_INTERSECT as MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT   } from "../modules/nf-core/bedtools/intersect/main"
@@ -165,6 +165,24 @@ include { CUSTOM_DUMPSOFTWAREVERSIONS                                  } from ".
 /*
  * SUBWORKFLOWS
  */
+
+
+
+/*
+========================================================================================
+    IMPORT CUSTOM MODULES/SUBWORKFLOWS
+========================================================================================
+*/
+
+include { MULTIQC  } from '../modules/local2/multiqc'
+include { FRAGMENT_LENGTH  } from '../modules/local2/fragment_length'
+include { READS_IN_PEAK  } from '../modules/local2/reads_in_peak'
+include { READ_METRICS  } from '../modules/local2/read_metrics'
+include { ORIGINAL_PEAK_METRICS  } from '../modules/local2/original_peak_metrics'
+include { REPLICATED_PEAKS } from '../modules/local2/replicated_peaks'
+include { CONSENSUS_PEAKS } from '../modules/local2/consensus_peaks'
+include { PLOT_METRICS } from '../modules/local2/plot_metrics'
+
 
 
 /*
@@ -722,6 +740,79 @@ workflow CUTANDRUN {
             }
         }
 
+
+
+
+    if (params.run_qc)
+        /* Run MultiQC */
+        MULTIQC(
+            ch_multiqc_config,
+            ch_bowtie2_log.collect{it[1]}.ifEmpty([]),
+            ch_bowtie2_spikein_log.collect{it[1]}.ifEmpty([]),
+            ch_samtools_stats.collect{it[1]}.ifEmpty([]),
+            ch_samtools_flagstat.collect{it[1]}.ifEmpty([]),
+            ch_samtools_idxstats.collect{it[1]}.ifEmpty([]),
+            ch_markduplicates_metrics.collect{it[1]}.ifEmpty([])
+
+        )
+
+        /* Compute fragment length */
+        FRAGMENT_LENGTH(ch_samtools_bam)
+        ch_frag_len = FRAGMENT_LENGTH.out.frag_len.flatten().collect()
+        //ch_frag_len.view()
+
+        /* Compute reads in peak */
+        ch_samtools_bam
+            .join(ch_peaks)
+            
+        READS_IN_PEAK( ch_samtools_bam, ch_peaks )
+        .map{ it -> it[1] }
+        .collect()
+        .set{ rip_list }
+
+    }
+
+    if (false){
+
+
+
+
+        /* Collect reads metrics */
+        read_metrics = READ_METRICS( frag_lens )
+
+
+        /* Collect metrics for original peaks */
+        ch_peaks
+                .map{ it -> it[1]  }
+                .collect()
+                .set{ peak_list }
+
+        ORIGINAL_PEAK_METRICS( read_metrics, peak_list, rip_list)
+                .set{ original_peaks }
+
+
+        /* Generate replicated peaks and collect metrics  */
+        replicated_peaks = REPLICATED_PEAKS( original_peaks, params.minReplicates )
+
+
+        /* Generate consensus peaks and collect metrics  */
+        consensus_peaks = CONSENSUS_PEAKS( replicated_peaks )
+
+
+        /* Make plots for report */
+        plots = PLOT_METRICS( read_metrics, original_peaks, replicated_peaks, consensus_peaks )
+
+
+
+
+
+
+
+
+
+
+//------------------------------------------------------------------------------------------
+// DO NOT RUN FROM HERE ON
         if ("macs2" in params.callers) {
             /*
             * MODULE: Convert narrow or broad peak to bed
