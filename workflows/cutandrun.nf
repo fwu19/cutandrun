@@ -740,13 +740,13 @@ workflow CUTANDRUN {
             }
         }
 
+    }
 
 
-
-    if (params.run_qc)
+    if (params.run_qc){
         /* Run MultiQC */
         MULTIQC(
-            ch_multiqc_config,
+            ch_multiqc_custom_config,
             ch_bowtie2_log.collect{it[1]}.ifEmpty([]),
             ch_bowtie2_spikein_log.collect{it[1]}.ifEmpty([]),
             ch_samtools_stats.collect{it[1]}.ifEmpty([]),
@@ -758,433 +758,53 @@ workflow CUTANDRUN {
 
         /* Compute fragment length */
         FRAGMENT_LENGTH(ch_samtools_bam)
-        ch_frag_len = FRAGMENT_LENGTH.out.frag_len.flatten().collect()
+        ch_frag_len = FRAGMENT_LENGTH.out.frag_len
+            .flatten()
+            .collect()
         //ch_frag_len.view()
 
         /* Compute reads in peak */
-        ch_samtools_bam
-            .join(ch_peaks)
-            
-        READS_IN_PEAK( ch_samtools_bam, ch_peaks )
-        .map{ it -> it[1] }
-        .collect()
-        .set{ rip_list }
+        ch_macs2_peaks_narrow
+            .concat(ch_macs2_peaks_broad, ch_seacr_peaks)
+            .cross(ch_samtools_bam)
+            .map {it -> [it[0][0], it[0][1], it[1][1]]}
+            .set{ch_peak_bam}
 
-    }
-
-    if (false){
-
-
-
+        READS_IN_PEAK( ch_peak_bam )
+        rip_list = READS_IN_PEAK.out.rip
+            .map{ it -> it[1] }
+            .flatten()
+            .collect()
+        //ch_rip.view()
 
         /* Collect reads metrics */
-        read_metrics = READ_METRICS( frag_lens )
-
+        READ_METRICS( params.input, MULTIQC.out.data, ch_frag_len )
+        read_metrics = READ_METRICS.out.metrics
+        //read_metrics.view()
 
         /* Collect metrics for original peaks */
-        ch_peaks
-                .map{ it -> it[1]  }
-                .collect()
-                .set{ peak_list }
+        ch_macs2_peaks_narrow
+            .concat(ch_macs2_peaks_broad, ch_seacr_peaks)
+            .map{ it -> it[1]  }
+            .collect()
+            .set{ peak_list }
 
         ORIGINAL_PEAK_METRICS( read_metrics, peak_list, rip_list)
-                .set{ original_peaks }
-
-
-        /* Generate replicated peaks and collect metrics  */
-        replicated_peaks = REPLICATED_PEAKS( original_peaks, params.minReplicates )
-
-
-        /* Generate consensus peaks and collect metrics  */
-        consensus_peaks = CONSENSUS_PEAKS( replicated_peaks )
-
-
-        /* Make plots for report */
-        plots = PLOT_METRICS( read_metrics, original_peaks, replicated_peaks, consensus_peaks )
-
-
-
-
-
-
-
-
-
-
-//------------------------------------------------------------------------------------------
-// DO NOT RUN FROM HERE ON
-        if ("macs2" in params.callers) {
-            /*
-            * MODULE: Convert narrow or broad peak to bed
-            */
-            PEAK_TO_BED ( ch_macs2_peaks )
-            ch_macs2_peaks       = PEAK_TO_BED.out.file
-            ch_software_versions = ch_software_versions.mix(PEAK_TO_BED.out.versions)
-            // EXAMPLE CHANNEL STRUCT: [[META], BED]
-            //PEAK_TO_BED.out.file | view
-        }
-
-        // Identify the primary peak data stream for downstream analysis
-        if(callers[0] == 'seacr') {
-            ch_peaks_primary   = ch_seacr_peaks
-            ch_peaks_secondary = ch_macs2_peaks
-        }
-        if(callers[0] == 'macs2') {
-            ch_peaks_primary   = ch_macs2_peaks
-            ch_peaks_secondary = ch_seacr_peaks
-        }
-
-        if(callers[0] == 'seacr') {
-            /*
-            * MODULE: Extract summits from seacr peak beds
-            */
-            AWK_EXTRACT_SUMMITS (
-                ch_peaks_primary
-            )
-            ch_peaks_summits     = AWK_EXTRACT_SUMMITS.out.file
-            ch_software_versions = ch_software_versions.mix(AWK_EXTRACT_SUMMITS.out.versions)
-            //AWK_EXTRACT_SUMMITS.out.file | view
-        }
-
-        /*
-        * MODULE: Add sample identifier column to peak beds
-        */
-        AWK_NAME_PEAK_BED (
-            ch_peaks_primary
-        )
-        ch_software_versions = ch_software_versions.mix(AWK_NAME_PEAK_BED.out.versions)
-        // EXAMPLE CHANNEL STRUCT: [[META], BED]
-        //AWK_NAME_PEAK_BED.out.file | view
-
-        if(params.run_consensus_all) {
-            /*
-            * CHANNEL: Group all samples, filter where the number in the group is > 1
-            */
-            AWK_NAME_PEAK_BED.out.file
-            .map { row -> [ 1, row[1] ] }
-            .groupTuple(by: [0])
-            .map { row ->
-                def new_meta = [:]
-                new_meta.put( "id", "all_samples" )
-                [ new_meta, row[1].flatten() ]
-            }
-            .map { row ->
-                [ row[0], row[1], row[1].size() ]
-            }
-            .filter { row -> row[2] > 1 }
-            .map { row ->
-                [ row[0], row[1] ]
-            }
-            .set { ch_peaks_bed_all }
-            // EXAMPLE CHANNEL STRUCT: [[id: all_samples], [BED1, BED2, BEDn...], count]
-            //ch_peaks_bed_all | view
-
-            /*
-            * SUBWORKFLOW: Construct group consensus peaks
-            */
-            CONSENSUS_PEAKS_ALL (
-                ch_peaks_bed_all
-            )
-            ch_consensus_peaks        = CONSENSUS_PEAKS_ALL.out.filtered_bed
-            ch_consensus_peaks_unfilt = CONSENSUS_PEAKS_ALL.out.merged_bed
-            ch_software_versions      = ch_software_versions.mix(CONSENSUS_PEAKS_ALL.out.versions)
-            // EXAMPLE CHANNEL STRUCT: [[META], BED]
-            //CONSENSUS_PEAKS_ALL.out.bed | view
-        } else {
-            /*
-            * CHANNEL: Group samples based on group name
-            */
-            AWK_NAME_PEAK_BED.out.file
-            .map { row -> [ row[0].group, row[1] ] }
-            .groupTuple(by: [0])
-            .map { row -> [ [id: row[0]], row[1].flatten() ] }
-            .set { ch_peaks_bed_group }
-            // EXAMPLE CHANNEL STRUCT: [[id: <GROUP>], [BED1, BED2, BEDn...], count]
-            //ch_peaks_bed_group | view
-
-            /*
-            * SUBWORKFLOW: Construct group consensus peaks
-            * where there is more than 1 replicate in a group
-            */
-            CONSENSUS_PEAKS (
-                ch_peaks_bed_group
-            )
-            ch_consensus_peaks        = CONSENSUS_PEAKS.out.filtered_bed
-            ch_consensus_peaks_unfilt = CONSENSUS_PEAKS.out.merged_bed
-            ch_software_versions      = ch_software_versions.mix(CONSENSUS_PEAKS.out.versions)
-            // EXAMPLE CHANNEL STRUCT: [[META], BED]
-            //CONSENSUS_PEAKS.out.bed | view
-        }
+        original_peaks = ORIGINAL_PEAK_METRICS.out.metrics
+        // original_peaks.view()
     }
 
-    ch_dt_corrmatrix              = Channel.empty()
-    ch_dt_pcadata                 = Channel.empty()
-    ch_dt_fpmatrix                = Channel.empty()
-    ch_peakqc_frip_mqc            = Channel.empty()
-    ch_peakqc_count_mqc           = Channel.empty()
-    ch_peakqc_count_consensus_mqc = Channel.empty()
-    ch_peakqc_reprod_perc_mqc     = Channel.empty()
-    ch_frag_len_hist_mqc          = Channel.empty()
-    if(params.run_reporting) {
-        if(params.run_igv) {
-            /*
-            * MODULE: Create igv session
-            */
-            IGV_SESSION (
-                PREPARE_GENOME.out.fasta.map {it[1]},
-                PREPARE_GENOME.out.fasta_index.map {it[1]},
-                PREPARE_GENOME.out.bed_index,
-                //PREPARE_GENOME.out.gtf.collect(),
-                ch_peaks_primary.collect{it[1]}.filter{ it -> it.size() > 1}.ifEmpty([]),
-                ch_peaks_secondary.collect{it[1]}.filter{ it -> it.size() > 1}.ifEmpty([]),
-                ch_bigwig.collect{it[1]}.ifEmpty([]),
-                params.igv_sort_by_groups
-            )
-            //ch_software_versions = ch_software_versions.mix(IGV_SESSION.out.versions)
-        }
+    /* Generate replicated peaks and collect metrics  */
+    REPLICATED_PEAKS( params.input, original_peaks, params.min_replicates )
+    replicated_peaks = REPLICATED_PEAKS.out.metrics
 
-        if (params.run_deeptools_heatmaps && params.run_peak_calling) {
-            /*
-            * CHANNEL: Remove IgG from bigwig channel
-            */
-            ch_bigwig.filter { it[0].is_control == false }
-            .set { ch_bigwig_no_igg }
-            // ch_bigwig_no_igg | view
+    /* Generate consensus peaks and collect metrics  */
+    CONSENSUS_PEAKS( replicated_peaks )
+    consensus_peaks = CONSENSUS_PEAKS.out.metrics
 
-            /*
-            * MODULE: Compute DeepTools matrix used in heatmap plotting for Genes
-            */
-            DEEPTOOLS_COMPUTEMATRIX_GENE (
-                ch_bigwig_no_igg,
-                PREPARE_GENOME.out.bed.collect()
-            )
-            ch_software_versions = ch_software_versions.mix(DEEPTOOLS_COMPUTEMATRIX_GENE.out.versions)
+    /* Make plots for report */
+    PLOT_METRICS( read_metrics, original_peaks, replicated_peaks, consensus_peaks )
 
-            /*
-            * MODULE: Calculate DeepTools heatmap
-            */
-            DEEPTOOLS_PLOTHEATMAP_GENE (
-                DEEPTOOLS_COMPUTEMATRIX_GENE.out.matrix
-            )
-            ch_software_versions = ch_software_versions.mix(DEEPTOOLS_PLOTHEATMAP_GENE.out.versions)
-
-            /*
-            * CHANNEL: Structure output for join on id
-            */
-            ch_peaks_summits
-            .map { row -> [row[0].id, row ].flatten()}
-            .set { ch_peaks_summits_id }
-            //ch_peaks_bed_id | view
-
-            /*
-            * CHANNEL: Join beds and bigwigs on id
-            */
-            ch_bigwig_no_igg
-            .map { row -> [row[0].id, row ].flatten()}
-            .join ( ch_peaks_summits_id )
-            .filter ( it -> it[-1].size() > 1)
-            .set { ch_dt_bigwig_summits }
-            //ch_dt_peaks | view
-
-            ch_dt_bigwig_summits
-            .map { row -> row[1,2] }
-            .set { ch_ordered_bigwig }
-            //ch_ordered_bigwig | view
-
-            ch_dt_bigwig_summits
-            .map { row -> row[-1] }
-            .set { ch_ordered_peaks_max }
-            //ch_ordered_peaks_max | view
-
-            /*
-            * MODULE: Compute DeepTools matrix used in heatmap plotting for Peaks
-            */
-
-            DEEPTOOLS_COMPUTEMATRIX_PEAKS (
-                ch_ordered_bigwig,
-                ch_ordered_peaks_max
-            )
-
-            ch_software_versions = ch_software_versions.mix(DEEPTOOLS_COMPUTEMATRIX_PEAKS.out.versions)
-            //EXAMPLE CHANNEL STRUCT: [[META], MATRIX]
-            //DEEPTOOLS_COMPUTEMATRIX_PEAKS.out.matrix | view
-
-            /*
-            * MODULE: Calculate DeepTools heatmap
-            */
-            DEEPTOOLS_PLOTHEATMAP_PEAKS (
-                DEEPTOOLS_COMPUTEMATRIX_PEAKS.out.matrix
-            )
-            ch_software_versions = ch_software_versions.mix(DEEPTOOLS_PLOTHEATMAP_PEAKS.out.versions)
-
-            if(params.dt_calc_all_matrix) {
-                /*
-                * MODULE: Run calc gene matrix for all samples
-                */
-                DEEPTOOLS_COMPUTEMATRIX_GENE_ALL (
-                    ch_bigwig_no_igg.map{it[1]}.toSortedList().map{ [[id:'all_genes'], it]},
-                    PREPARE_GENOME.out.bed.toSortedList()
-                )
-
-                /*
-                * MODULE: Calculate DeepTools heatmap for all samples
-                */
-                DEEPTOOLS_PLOTHEATMAP_GENE_ALL (
-                    DEEPTOOLS_COMPUTEMATRIX_GENE_ALL.out.matrix
-                )
-            }
-        }
-
-        if(params.run_deeptools_qc) {
-            /*
-            * SUBWORKFLOW: Run suite of deeptools QC on bam files
-            */
-            DEEPTOOLS_QC (
-                ch_samtools_bam,
-                ch_samtools_bai,
-                params.dt_qc_corr_method
-            )
-            ch_dt_corrmatrix     = DEEPTOOLS_QC.out.correlation_matrix
-            ch_dt_pcadata        = DEEPTOOLS_QC.out.pca_data
-            ch_dt_fpmatrix       = DEEPTOOLS_QC.out.fingerprint_matrix
-            ch_software_versions = ch_software_versions.mix(DEEPTOOLS_QC.out.versions)
-        }
-
-        /*
-        * CHANNEL: Filter bais for target only
-        */
-        ch_samtools_bai.filter { it -> it[0].is_control == false }
-        .set { ch_bai_target }
-        //ch_bai_target | view
-
-        if (params.run_peak_qc && params.run_peak_calling) {
-            /*
-            * CHANNEL: Filter flagstat for target only
-            */
-            ch_samtools_flagstat.filter { it -> it[0].is_control == false }
-            .set { ch_flagstat_target }
-            //ch_flagstat_target | view
-
-            /*
-            * SUBWORKFLOW: Extract fragments from bam files for fragment-based FRiP score
-            */
-            EXTRACT_FRAGMENTS (
-                ch_bam_target
-            )
-
-            /*
-            * SUBWORKFLOW: Run suite of peak QC on peaks
-            */
-            PEAK_QC(
-                ch_peaks_primary,
-                AWK_NAME_PEAK_BED.out.file,
-                ch_consensus_peaks,
-                ch_consensus_peaks_unfilt,
-                EXTRACT_FRAGMENTS.out.bed,
-                ch_flagstat_target,
-                params.min_frip_overlap,
-                ch_frip_score_header_multiqc,
-                ch_peak_counts_header_multiqc,
-                ch_peak_counts_consensus_header_multiqc,
-                ch_peak_reprod_header_multiqc
-            )
-            ch_peakqc_frip_mqc             = PEAK_QC.out.primary_frip_mqc
-            ch_peakqc_count_mqc            = PEAK_QC.out.primary_count_mqc
-            ch_peakqc_count_consensus_mqc  = PEAK_QC.out.consensus_count_mqc
-            ch_peakqc_reprod_perc_mqc      = PEAK_QC.out.reprod_perc_mqc
-            ch_software_versions           = ch_software_versions.mix(PEAK_QC.out.versions)
-        }
-        //ch_peakqc_reprod_perc_mqc | view
-
-        /*
-        * CHANNEL: Combine bam and bai files on id
-        */
-
-        ch_bam_target.map { row -> [row[0].id, row ].flatten()}
-        .join ( ch_bai_target.map { row -> [row[0].id, row ].flatten()} )
-        .map { row -> [row[1], row[2], row[4]] }
-        .set { ch_bam_bai }
-        // EXAMPLE CHANNEL STRUCT: [[META], BAM, BAI]
-        //ch_bam_bai | view
-
-        /*
-        * MODULE: Calculate fragment lengths
-        */
-        SAMTOOLS_CUSTOMVIEW (
-            ch_bam_bai
-        )
-        ch_software_versions = ch_software_versions.mix(SAMTOOLS_CUSTOMVIEW.out.versions)
-        //SAMTOOLS_CUSTOMVIEW.out.tsv | view
-
-        /*
-        * CHANNEL: Prepare data for generate reports
-        */
-        // Make sure files are always in order for resume
-        ch_frag_len = SAMTOOLS_CUSTOMVIEW.out.tsv
-        .toSortedList { row -> row[0].id }
-        .map {
-            list ->
-            def output = []
-            list.each{ v -> output.add(v[1]) }
-            output
-        }
-        //ch_frag_len | view
-
-        /*
-        * MODULE: Calculate fragment length histogram for mqc
-        */
-        FRAG_LEN_HIST(
-            ch_frag_len,
-            ch_frag_len_header_multiqc
-        )
-        ch_frag_len_hist_mqc = FRAG_LEN_HIST.out.frag_len_mqc
-        ch_software_versions = ch_software_versions.mix(FRAG_LEN_HIST.out.versions)
-    }
-    //ch_frag_len_hist_mqc | view
-
-
-    if (params.run_multiqc) {
-        workflow_summary    = WorkflowCutandrun.paramsSummaryMultiqc(workflow, summary_params)
-        ch_workflow_summary = Channel.value(workflow_summary)
-
-        /*
-        * MODULE: Collect software versions used in pipeline
-        */
-        CUSTOM_DUMPSOFTWAREVERSIONS (
-            ch_software_versions.unique().collectFile()
-        )
-
-        /*
-        * MODULE: Multiqc
-        */
-        MULTIQC (
-            ch_multiqc_config,
-            ch_multiqc_custom_config.collect().ifEmpty([]),
-            CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect(),
-            CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_unique_yml.collect(),
-            ch_workflow_summary.collectFile(name: "workflow_summary_mqc.yml"),
-            FASTQC_TRIMGALORE.out.fastqc_zip.collect{it[1]}.ifEmpty([]),
-            FASTQC_TRIMGALORE.out.trim_zip.collect{it[1]}.ifEmpty([]),
-            FASTQC_TRIMGALORE.out.trim_log.collect{it[1]}.ifEmpty([]),
-            ch_bowtie2_log.collect{it[1]}.ifEmpty([]),
-            ch_bowtie2_spikein_log.collect{it[1]}.ifEmpty([]),
-            ch_samtools_stats.collect{it[1]}.ifEmpty([]),
-            ch_samtools_flagstat.collect{it[1]}.ifEmpty([]),
-            ch_samtools_idxstats.collect{it[1]}.ifEmpty([]),
-            ch_markduplicates_metrics.collect{it[1]}.ifEmpty([]),
-            ch_preseq_output.collect{it[1]}.ifEmpty([]),
-            ch_dt_corrmatrix.collect{it[1]}.ifEmpty([]),
-            ch_dt_pcadata.collect{it[1]}.ifEmpty([]),
-            ch_dt_fpmatrix.collect{it[1]}.ifEmpty([]),
-            ch_peakqc_count_mqc.collect{it[1]}.ifEmpty([]),
-            ch_peakqc_frip_mqc.collect{it[1]}.ifEmpty([]),
-            ch_peakqc_count_consensus_mqc.collect{it[1]}.ifEmpty([]),
-            ch_peakqc_reprod_perc_mqc.collect().ifEmpty([]),
-            ch_frag_len_hist_mqc.collect().ifEmpty([]),
-            ch_linear_duplication_mqc.collect{it[1]}.ifEmpty([])
-        )
-        multiqc_report = MULTIQC.out.report.toList()
-    }
 }
 
 ////////////////////////////////////////////////////

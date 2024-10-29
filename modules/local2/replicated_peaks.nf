@@ -6,16 +6,20 @@ process REPLICATED_PEAKS {
     tag "Generate replicated peaks and collect metrics"
 
     input:
-    path( original_peaks )
-    val( min_reps )
-    
+    path ( input )
+    path ( original_peaks )
+    val ( min_reps )
+
 
     output:
-    tuple path( "*" )
+    path ( "*.{csv,rds}" ), emit: metrics
+    path ( "*.bed" ), emit: peak
 
     script:
     """
-    replicated_peaks.r ${params.input} $min_reps # original_peaks.rds original_peak_metrics.csv 
-    
+    replicated_peaks.r $input $min_reps
+
     """
+
+    // input files: original_peaks.rds original_peak_metrics.csv
 }

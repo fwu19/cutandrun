@@ -62,7 +62,21 @@ conps <- lapply(
   generate_conp
   )
 
+## summarize conp ####
+nconps <- as.data.frame(bind_rows(mapply(
+  function(pk, id){
+    data.frame(conp.id = id, nconp = nrow(pk))
+  }, conps, names(conps), SIMPLIFY = F
+)))
+nconps[,c( 'target', 'caller')] <- do.call(rbind,strsplit(nconps$conp.id, split = ':'))
 
+
+## save results ####
+saveRDS(conps, 'consensus_peaks.rds')
+write.table(nconps, 'consensus_peak_metrics.csv', sep = ',', quote = F, row.names = F)
+
+
+## write out consensus peaks ####
 out.bed <- paste0(
   gsub(':.*','.',names(conps)),
   dplyr::case_when(
@@ -78,27 +92,9 @@ mapply(
       system(paste('touch', fname))
     }else if (nrow(x) > 0){
       write.table(x, fname, sep = '\t', quote = F, row.names = F, col.names = F)
-    }else{
-      system(paste('touch', fname))
     }
   }, 
   conps, 
   out.bed,
   SIMPLIFY = F
 )
-
-
-## summarize conp ####
-nconps <- as.data.frame(bind_rows(mapply(
-  function(pk, id){
-    data.frame(conp.id = id, nconp = nrow(pk))
-  }, conps, names(conps), SIMPLIFY = F
-)))
-nconps[,c( 'target', 'caller')] <- do.call(rbind,strsplit(nconps$conp.id, split = ':'))
-
-
-## save results ####
-saveRDS(conps, 'consensus_peaks.rds')
-write.table(nconps, 'consensus_peak_metrics.csv', sep = ',', quote = F, row.names = F)
-
-

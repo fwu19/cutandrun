@@ -46,8 +46,8 @@ merge_reps <- function(rep.peaks, min.reps){
 if ('exclude_rep_peaks' %in% colnames(ss)){
   npeaks <- npeaks %>% 
     left_join(
-      ss %>% dplyr::select(sample_id, exclude_rep_peaks),
-      by = 'sample_id'
+      ss %>% dplyr::select(id, exclude_rep_peaks),
+      by = 'id'
     )
 }else{
   npeaks$exclude_rep_peaks <- 'false'
@@ -65,45 +65,7 @@ reps <- lapply(
   merge_reps, min.rep = min.reps
 )
 
-## write out replicated peaks
-rep.files <- sapply(
-  strsplit(names(reps), split = ":"),
-  function(v){
-    paste0(
-      v[2], '_', v[3], '.', 
-      dplyr::case_when(
-        grepl('narrow', v[1]) ~ 'narrow_peaks.bed', 
-        grepl('broad', v[1]) ~ 'broad_peaks.bed',
-        TRUE ~ 'stringent.bed')
-    )
-  }
-)
-
-mapply(
-  function(pk, fname){
-    if (length(pk) > 0){
-      df <- as.data.frame(pk)[1:3]
-      df[,2] <- df[,2] - 1
-      
-      write.table(df, fname, sep = '\t', quote = F, row.names = F, col.names = F)
-    }else{
-      system(paste('touch', fname))
-    }
-  }, reps, rep.files, SIMPLIFY = F
-)       
-
-
 ## summarize reproduced peaks ####
-# nreps <- as.data.frame(bind_rows(mapply(
-#   function(pk, id){
-#     data.frame(rep.id = id, nrep = length(pk))
-#   }, reps, names(reps), SIMPLIFY = F
-# )))
-# nreps[,c( 'caller', 'sample_group', 'target')] <- do.call(rbind,strsplit(nreps$rep.id, split = ':'))
-
-
-
-
 df <- as.data.frame(data.table::rbindlist(mapply(
   function(pk, id){
     data.frame(rep.id = id, nrep = length(pk))
@@ -138,4 +100,28 @@ saveRDS(reps, 'replicated_peaks.rds')
 write.table(nreps, 'replicated_peak_metrics.csv', sep = ',', quote = F, row.names = F)
 
 
+## write out replicated peaks ####
+rep.files <- sapply(
+  strsplit(names(reps), split = ":"),
+  function(v){
+    paste0(
+      v[2], '_', v[3], '.', 
+      dplyr::case_when(
+        grepl('narrow', v[1]) ~ 'narrow_peaks.bed', 
+        grepl('broad', v[1]) ~ 'broad_peaks.bed',
+        TRUE ~ 'stringent.bed')
+    )
+  }
+)
+
+mapply(
+  function(pk, fname){
+    if (length(pk) > 0){
+      df <- as.data.frame(pk)[1:3]
+      df[,2] <- df[,2] - 1
+      
+      write.table(df, fname, sep = '\t', quote = F, row.names = F, col.names = F)
+    }
+  }, reps, rep.files, SIMPLIFY = F
+)       
 

@@ -9,11 +9,14 @@ process CONSENSUS_PEAKS {
     path( replicated_peaks )
 
     output:
-    tuple path( "*" )
+    path ( "*.{rds,csv}" ), emit: metrics
+    path ( "*.bed" ), emit: peak
 
     script:
     """
-    consensus_peaks.r # replicated_peaks.rds replicated_peak_metrics.csv
-    
+    consensus_peaks.r
+
     """
+
+    // input files: replicated_peaks.rds replicated_peak_metrics.csv
 }

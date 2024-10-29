@@ -10,7 +10,7 @@ stopifnot(file.exists('read_metrics.csv'))
 meta <- read.csv('read_metrics.csv')
 
 dat <- list()
-
+dat$meta <- meta
 if (file.exists('fragment_length.rds')){
   dat$frag_lens <- readRDS('fragment_length.rds')
 }
