@@ -1,7 +1,7 @@
 process FRAGMENT_LENGTH {
     label "process_single"
 
-    tag "Compute fragment lengths on ${meta.sample_id}"
+    tag "Compute fragment lengths on ${meta.id}"
 
     conda "bioconda::samtools=1.17"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
