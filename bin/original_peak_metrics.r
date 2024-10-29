@@ -1,5 +1,7 @@
 #!/usr/bin/env Rscript
 
+.libPaths("/fh/fast/_SR/Genomics/user/fwu/R/x86_64-pc-linux-gnu-library/4.1")
+
 options(stringsAsFactors = F)
 options(scipen = 99)
 library(dplyr)
