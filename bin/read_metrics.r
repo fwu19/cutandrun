@@ -5,36 +5,38 @@ library(dplyr)
 
 args <- commandArgs(T)
 if (length(args) < 1){
-  stop("Please provide the following positional arguments, <path/to/sample_sheet.csv> <path/to/meta_table_ctrl.csv> <path/to/fragment_length>")
+  stop("Missing required arguments <path/to/sample_sheet.csv> ")
 }
 
 ## sample sheet ####
 ss <- read.csv(args[1])
-mqc.dir <- paste(args[2], '04_reporting/multiqc/multiqc_data/', sep = '/')
-target.genome <- args[3]
-spikein.genome <- args[4]
 
 ## metadata ####
-df <- read.delim(paste(mqc.dir, 'multiqc_bowtie2.txt', sep = '/')) %>% 
+bt2_target <- read.delim('multiqc_data/multiqc_bowtie2.txt') %>% 
   mutate(
-    id = gsub('.bowtie2|.spikein.bowtie2', '', Sample),
+    id = Sample,
     total_aligned = paired_aligned_one + paired_aligned_multi,
     overall_alignment_rate = overall_alignment_rate/100 
     )
-bt2 <- df %>% 
-  filter(!grepl('spikein', Sample)) %>% 
+bt2_spikein <- read.delim('multiqc_data/multiqc_bowtie2_1.txt') %>% 
+  mutate(
+    id = Sample,
+    total_aligned = paired_aligned_one + paired_aligned_multi,
+    overall_alignment_rate = overall_alignment_rate/100 
+  )
+
+bt2 <- bt2_target %>% 
   dplyr::select(-Sample) %>% 
   left_join(
-    df %>% 
-      filter(grepl('spikein', Sample)) %>% 
+      bt2_spikein %>% 
       dplyr::select(-Sample),
     by = 'id', suffix = c('_target', '_spikein')
   ) %>% 
   relocate(id)
 colnames(bt2)[2:ncol(bt2)] <- paste('bt2', colnames(bt2), sep = '_')[2:ncol(bt2)]
 
-dedup <- read.delim(paste(mqc.dir, 'multiqc_picard_dups.txt', sep = '/')) %>% 
-  mutate(id = gsub('.target.filtered', '', Sample)) %>% 
+dedup <- read.delim('multiqc_data/multiqc_picard_dups.txt') %>% 
+  mutate(id = Sample) %>% 
   dplyr::select(id,READ_PAIR_DUPLICATES, PERCENT_DUPLICATION, ESTIMATED_LIBRARY_SIZE) %>% 
   dplyr::rename_with(tolower) 
 colnames(dedup)[2:ncol(dedup)] <- paste('dedup', colnames(dedup), sep = '_')[2:ncol(dedup)]
@@ -52,7 +54,7 @@ write.table(meta, 'read_metrics.csv', sep = ',', quote = F, row.names = F)
 
 
 ## fragment lengths ####
-flist <- list.files('./', pattern = 'fragment_length', full.names = T, recursive = T)
+flist <- list.files('fragment_length/', pattern = 'fragment_length', full.names = T, recursive = T)
 bind_rows(lapply(
   flist,
   function(fname){

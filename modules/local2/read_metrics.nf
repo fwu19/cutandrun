@@ -1,18 +1,25 @@
 process READ_METRICS {
-    module = ['fhR/4.1.2-foss-2021b']
 
     label "process_single"
     tag "Collect reads QC"
 
+    conda "conda-forge::r-base=4.1.2"
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/r-tidyverse:1.2.1' :
+        'biocontainers/mulled-v2-03bfeb32fe80910c231f630d4262b83677c8c0f4:f4bb19b68e66de27e4c64306f951d5ff11919931-0' }"
+
     input:
-    path (frag_lens)
+    path (input)
+    path (multiqc_data, stageAs: "multiqc_data/*")
+    path (frag_lens, stageAs: "fragment_length/*")
 
     output:
-    tuple path( "*" )
+    path( "*.{csv,rds}" ), emit: metrics
+
 
     script:
     """
-    read_metrics.r ${params.input} ${params.indir} ${params.genome} ${params.spikein_genome} ${params.spikein_genome_2}
-    
+    read_metrics.r $input
+
     """
 }
