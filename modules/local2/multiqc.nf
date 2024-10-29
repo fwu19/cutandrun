@@ -9,7 +9,7 @@ process MULTIQC {
     tag "MultiQC on all samples"
 
     input:
-    path multiqc_config
+    path (multiqc_config)
     path ('bowtie2/*')
     path ('bowtie2_spikein/*')
     path ('samtools/stats/*')
