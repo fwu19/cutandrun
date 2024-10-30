@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+id=$1; shift
 bam=$1; shift
-peak=$1; shift
-echo -e $(basename $peak ),$( bedtools intersect -a $bam -b $peak -u | samtools view -F 256 -f 64 -c - ) >$(basename $peak ).reads_in_peak.csv # count only R1 reads
+
+for peak in $(ls peaks/); do
+    echo -e $(basename $peak ),$( bedtools intersect -a $bam -b peaks/$peak -u | samtools view -F 256 -f 64 -c - ) 
+done >${id}.reads_in_peak.csv

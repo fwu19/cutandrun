@@ -461,10 +461,16 @@ workflow CUTANDRUN {
 
     ch_bedgraph               = Channel.empty()
     ch_bigwig                 = Channel.empty()
+    ch_seacr_peaks_igg            = Channel.empty()
+    ch_seacr_peaks_noigg            = Channel.empty()
     ch_seacr_peaks            = Channel.empty()
     ch_macs2_peaks            = Channel.empty()
-    ch_macs2_peaks_narrow            = Channel.empty()
-    ch_macs2_peaks_broad            = Channel.empty()
+    ch_macs2_peaks_igg_narrow = Channel.empty()
+    ch_macs2_peaks_noigg_narrow = Channel.empty()
+    ch_macs2_peaks_narrow     = Channel.empty()
+    ch_macs2_peaks_broad      = Channel.empty()
+    ch_macs2_peaks_igg_broad      = Channel.empty()
+    ch_macs2_peaks_noigg_broad      = Channel.empty()
     ch_peaks_primary          = Channel.empty()
     ch_peaks_secondary        = Channel.empty()
     ch_peaks_summits          = Channel.empty()
@@ -765,9 +771,18 @@ workflow CUTANDRUN {
 
         /* Compute reads in peak */
         ch_macs2_peaks_narrow
-            .concat(ch_macs2_peaks_broad, ch_seacr_peaks)
-            .cross(ch_samtools_bam)
-            .map {it -> [it[0][0], it[0][1], it[1][1]]}
+            .concat(
+                ch_macs2_peaks_igg_narrow,
+                ch_macs2_peaks_noigg_narrow,
+                ch_macs2_peaks_broad,
+                ch_macs2_peaks_igg_broad,
+                ch_macs2_peaks_noigg_broad,
+                ch_seacr_peaks,
+                ch_seacr_peaks_igg,
+                ch_seacr_peaks_noigg
+            )
+            .groupTuple(by: 0)
+            .join(ch_samtools_bam)
             .set{ch_peak_bam}
 
         READS_IN_PEAK( ch_peak_bam )
@@ -784,7 +799,16 @@ workflow CUTANDRUN {
 
         /* Collect metrics for original peaks */
         ch_macs2_peaks_narrow
-            .concat(ch_macs2_peaks_broad, ch_seacr_peaks)
+            .concat(
+                ch_macs2_peaks_igg_narrow,
+                ch_macs2_peaks_noigg_narrow,
+                ch_macs2_peaks_broad,
+                ch_macs2_peaks_igg_broad,
+                ch_macs2_peaks_noigg_broad,
+                ch_seacr_peaks,
+                ch_seacr_peaks_igg,
+                ch_seacr_peaks_noigg
+            )
             .map{ it -> it[1]  }
             .collect()
             .set{ peak_list }

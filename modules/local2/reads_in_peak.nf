@@ -6,13 +6,13 @@ process READS_IN_PEAK {
     module = [ 'SAMtools/1.11-GCC-10.2.0', 'BEDTools/2.30.0-GCC-10.2.0' ]
 
     input:
-    tuple val( meta ), path( peak ), path(bam)
+    tuple val( meta ), path( "peaks/*" ), path(bam)
 
     output:
     tuple val( meta ), path( "*.reads_in_peak.csv" ), emit: rip
 
     script:
     """
-    reads_in_peak.sh $bam $peak
+    reads_in_peak.sh ${meta.id} $bam
     """
 }
