@@ -749,7 +749,7 @@ workflow CUTANDRUN {
     }
 
 
-    if (params.run_qc){
+    if (params.run_local){
         /* Run MultiQC */
         MULTIQC(
             ch_multiqc_custom_config,
@@ -816,18 +816,18 @@ workflow CUTANDRUN {
         ORIGINAL_PEAK_METRICS( read_metrics, peak_list, rip_list)
         original_peaks = ORIGINAL_PEAK_METRICS.out.metrics
         // original_peaks.view()
+
+        /* Generate replicated peaks and collect metrics  */
+        REPLICATED_PEAKS( params.input, original_peaks, params.min_replicates )
+        replicated_peaks = REPLICATED_PEAKS.out.metrics
+
+        /* Generate consensus peaks and collect metrics  */
+        CONSENSUS_PEAKS( replicated_peaks )
+        consensus_peaks = CONSENSUS_PEAKS.out.metrics
+
+        /* Make plots for report */
+        PLOT_METRICS( read_metrics, original_peaks, replicated_peaks, consensus_peaks )
     }
-
-    /* Generate replicated peaks and collect metrics  */
-    REPLICATED_PEAKS( params.input, original_peaks, params.min_replicates )
-    replicated_peaks = REPLICATED_PEAKS.out.metrics
-
-    /* Generate consensus peaks and collect metrics  */
-    CONSENSUS_PEAKS( replicated_peaks )
-    consensus_peaks = CONSENSUS_PEAKS.out.metrics
-
-    /* Make plots for report */
-    PLOT_METRICS( read_metrics, original_peaks, replicated_peaks, consensus_peaks )
 
 }
 
