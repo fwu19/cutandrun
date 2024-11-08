@@ -9,7 +9,7 @@ process READS_IN_PEAK {
     tuple val( meta ), path( "peaks/*" ), path(bam)
 
     output:
-    tuple val( meta ), path( "*.reads_in_peak.csv" ), emit: rip
+    tuple val( meta ), path( "*.reads_in_peak.csv" ), emit: csv
 
     script:
     """

@@ -103,7 +103,6 @@ if ((caller_list + callers).unique().size() != caller_list.size()) {
 /*
  * MODULES
  */
-include { INPUT_CHECK                } from "../subworkflows/local/input_check"
 include { CUT as PEAK_TO_BED         } from '../modules/local/linux/cut'
 include { AWK as AWK_NAME_PEAK_BED   } from "../modules/local/linux/awk"
 include { IGV_SESSION                } from "../modules/local/python/igv_session"
@@ -111,9 +110,6 @@ include { AWK as AWK_EXTRACT_SUMMITS } from "../modules/local/linux/awk"
 include { SAMTOOLS_CUSTOMVIEW        } from "../modules/local/samtools_custom_view"
 include { FRAG_LEN_HIST              } from "../modules/local/python/frag_len_hist"
 //include { MULTIQC                    } from "../modules/local/multiqc"
-include { BEDTOOLS_INTERSECT as SEACR_PEAKS_BEDTOOLS_INTERSECT   } from "../modules/nf-core/bedtools/intersect/main"
-include { BEDTOOLS_INTERSECT as MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT   } from "../modules/nf-core/bedtools/intersect/main"
-include { BEDTOOLS_INTERSECT as MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT   } from "../modules/nf-core/bedtools/intersect/main"
 
 /*
  * SUBWORKFLOWS
@@ -126,12 +122,7 @@ include { EXTRACT_METADATA_AWK as EXTRACT_BT2_SPIKEIN_META } from "../subworkflo
 include { EXTRACT_METADATA_AWK as EXTRACT_PICARD_DUP_META  } from "../subworkflows/local/extract_metadata_awk"
 include { MARK_DUPLICATES_PICARD                           } from "../subworkflows/local/mark_duplicates_picard"
 include { MARK_DUPLICATES_PICARD as DEDUPLICATE_PICARD     } from "../subworkflows/local/mark_duplicates_picard"
-include { CONSENSUS_PEAKS                                  } from "../subworkflows/local/consensus_peaks"
-include { CONSENSUS_PEAKS as CONSENSUS_PEAKS_ALL           } from "../subworkflows/local/consensus_peaks"
 include { EXTRACT_FRAGMENTS                                } from "../subworkflows/local/extract_fragments"
-include { COMPUTE_GENOMECOVERAGE                           } from "../subworkflows/local/compute_genomecoverage"
-include { DEEPTOOLS_QC                                     } from "../subworkflows/local/deeptools_qc"
-include { PEAK_QC                                          } from "../subworkflows/local/peak_qc"
 include { SAMTOOLS_VIEW_SORT_STATS as FILTER_READS         } from "../subworkflows/local/samtools_view_sort_stats"
 include { DEDUPLICATE_LINEAR                               } from "../subworkflows/local/deduplicate_linear"
 
@@ -146,20 +137,6 @@ include { DEDUPLICATE_LINEAR                               } from "../subworkflo
  */
 include { CAT_FASTQ                                                    } from "../modules/nf-core/cat/fastq/main"
 include { PRESEQ_LCEXTRAP                                              } from "../modules/nf-core/preseq/lcextrap/main"
-include { SEACR_CALLPEAK as SEACR_CALLPEAK_IGG                         } from "../modules/nf-core/seacr/callpeak/main"
-include { SEACR_CALLPEAK as SEACR_CALLPEAK_NOIGG                       } from "../modules/nf-core/seacr/callpeak/main"
-include { MACS2_CALLPEAK as MACS2_CALLPEAK_IGG_NARROW                         } from "../modules/nf-core/macs2/callpeak/main"
-include { MACS2_CALLPEAK as MACS2_CALLPEAK_NOIGG_NARROW                       } from "../modules/nf-core/macs2/callpeak/main"
-include { MACS2_CALLPEAK as MACS2_CALLPEAK_IGG_BROAD                         } from "../modules/nf-core/macs2/callpeak/main"
-include { MACS2_CALLPEAK as MACS2_CALLPEAK_NOIGG_BROAD                       } from "../modules/nf-core/macs2/callpeak/main"
-include { DEEPTOOLS_COMPUTEMATRIX as DEEPTOOLS_COMPUTEMATRIX_GENE      } from "../modules/nf-core/deeptools/computematrix/main"
-include { DEEPTOOLS_COMPUTEMATRIX as DEEPTOOLS_COMPUTEMATRIX_PEAKS     } from "../modules/nf-core/deeptools/computematrix/main"
-include { DEEPTOOLS_PLOTHEATMAP as DEEPTOOLS_PLOTHEATMAP_GENE          } from "../modules/nf-core/deeptools/plotheatmap/main"
-include { DEEPTOOLS_PLOTHEATMAP as DEEPTOOLS_PLOTHEATMAP_PEAKS         } from "../modules/nf-core/deeptools/plotheatmap/main"
-include { DEEPTOOLS_COMPUTEMATRIX as DEEPTOOLS_COMPUTEMATRIX_GENE_ALL  } from "../modules/nf-core/deeptools/computematrix/main"
-include { DEEPTOOLS_COMPUTEMATRIX as DEEPTOOLS_COMPUTEMATRIX_PEAKS_ALL } from "../modules/nf-core/deeptools/computematrix/main"
-include { DEEPTOOLS_PLOTHEATMAP as DEEPTOOLS_PLOTHEATMAP_GENE_ALL      } from "../modules/nf-core/deeptools/plotheatmap/main"
-include { DEEPTOOLS_PLOTHEATMAP as DEEPTOOLS_PLOTHEATMAP_PEAKS_ALL     } from "../modules/nf-core/deeptools/plotheatmap/main"
 include { CUSTOM_DUMPSOFTWAREVERSIONS                                  } from "../modules/local/custom_dumpsoftwareversions"
 
 /*
@@ -173,15 +150,22 @@ include { CUSTOM_DUMPSOFTWAREVERSIONS                                  } from ".
     IMPORT CUSTOM MODULES/SUBWORKFLOWS
 ========================================================================================
 */
+include { INPUT_CHECK                   } from "../subworkflows/local2/input_check"
+include { CALL_PEAKS                    } from '../subworkflows/local2/call_peaks'
+include { COMPUTE_GENOMECOVERAGE        } from "../subworkflows/local2/compute_genomecoverage"
 
-include { MULTIQC  } from '../modules/local2/multiqc'
-include { FRAGMENT_LENGTH  } from '../modules/local2/fragment_length'
-include { READS_IN_PEAK  } from '../modules/local2/reads_in_peak'
-include { READ_METRICS  } from '../modules/local2/read_metrics'
-include { ORIGINAL_PEAK_METRICS  } from '../modules/local2/original_peak_metrics'
-include { REPLICATED_PEAKS } from '../modules/local2/replicated_peaks'
-include { CONSENSUS_PEAKS } from '../modules/local2/consensus_peaks'
-include { PLOT_METRICS } from '../modules/local2/plot_metrics'
+include { MULTIQC                       } from '../modules/local2/multiqc'
+include { FRAGMENT_LENGTHS               } from '../modules/local2/fragment_lengths'
+include { READ_METRICS                  } from '../modules/local2/read_metrics'
+include { READS_IN_PEAK                 } from '../modules/local2/reads_in_peak'
+include { ORIGINAL_PEAKS                } from '../modules/local2/original_peaks'
+include { ORIGINAL_PEAK_WIDTHS          } from '../modules/local2/original_peak_widths'
+include { REPLICATED_PEAKS              } from '../modules/local2/replicated_peaks'
+include { CONSENSUS_PEAKS               } from '../modules/local2/consensus_peaks'
+include { ANNOTATE_CONSENSUS_PEAKS      } from '../modules/local2/annotate_consensus_peaks'
+include { GENERATE_REPORT                  } from '../modules/local2/generate_report'
+include { READS_IN_CONSENSUS_PEAKS      } from '../modules/local2/reads_in_consensus_peaks'
+include { DIFFERENTIAL_PEAKS            } from '../modules/local2/differential_peaks'
 
 
 
@@ -211,9 +195,13 @@ workflow CUTANDRUN {
      * SUBWORKFLOW: Read in samplesheet, validate and stage input files
      */
     if(params.run_input_check) {
+        ch_metadata = params.metadata ? file( params.metadata, checkIfExists: true ) : ch_dummy_file
         INPUT_CHECK (
-            ch_input
+            ch_input,
+            ch_metadata
         )
+
+        samplesheet = INPUT_CHECK.out.samplesheet
 
         INPUT_CHECK.out.reads
         .map {
@@ -229,6 +217,7 @@ workflow CUTANDRUN {
         }
         .set { ch_fastq }
     }
+
 
     /*
      * MODULE: Concatenate FastQ files from same sample if required
@@ -459,27 +448,14 @@ workflow CUTANDRUN {
         ch_software_versions      = ch_software_versions.mix(DEDUPLICATE_LINEAR.out.versions)
     }
 
-    ch_bedgraph               = Channel.empty()
-    ch_bigwig                 = Channel.empty()
-    ch_seacr_peaks_igg            = Channel.empty()
-    ch_seacr_peaks_noigg            = Channel.empty()
-    ch_seacr_peaks            = Channel.empty()
-    ch_macs2_peaks            = Channel.empty()
-    ch_macs2_peaks_igg_narrow = Channel.empty()
-    ch_macs2_peaks_noigg_narrow = Channel.empty()
-    ch_macs2_peaks_narrow     = Channel.empty()
-    ch_macs2_peaks_broad      = Channel.empty()
-    ch_macs2_peaks_igg_broad      = Channel.empty()
-    ch_macs2_peaks_noigg_broad      = Channel.empty()
-    ch_peaks_primary          = Channel.empty()
-    ch_peaks_secondary        = Channel.empty()
-    ch_peaks_summits          = Channel.empty()
-    ch_consensus_peaks        = Channel.empty()
-    ch_consensus_peaks_unfilt = Channel.empty()
+
+    /*
+    * SUBWORKFLOW: Convert BAM files to bedgraph/bigwig and apply spikein normalisation if required
+    */
+    ch_bedgraph_markdup     = Channel.empty()
+    ch_bedgraph_dedup       = Channel.empty()
+
     if(params.run_alignment && params.run_read_filter) {
-        /*
-        * SUBWORKFLOW: Convert BAM files to bedgraph/bigwig and apply spikein normalisation if required
-        */
         COMPUTE_GENOMECOVERAGE(
             ch_samtools_bam_markdup,
             ch_samtools_bai_markdup,
@@ -497,262 +473,34 @@ workflow CUTANDRUN {
 
     }
 
+
+    /*
+     * SUBWORKFLOW: Call peaks from individual samples
+     */
+    ch_peaks_all = Channel.empty()
+    ch_peaks_final = Channel.empty()
     if(params.run_peak_calling) {
+        CALL_PEAKS (
+            ch_bedgraph_markdup,
+            ch_bedgraph_dedup,
+            ch_samtools_bam_markdup
+        )
+        //CALL_PEAKS.out.peaks_all.view()
+        // [ meta, [peaks] ]
 
-        /*
-         * CHANNEL: Separate bedgraphs into target/control for SEACR
-         * for SEACR, use markdup for target and dedup for control
-         */
-        ch_bedgraph_markdup
-            .filter { it -> it[0].is_control == false }
-            .set { ch_bedgraph_target }
-        ch_bedgraph_dedup
-            .filter { it -> it[0].is_control == true }
-            .set { ch_bedgraph_control }
-        //ch_bedgraph_target | view
-        //ch_bedgraph_control | view
-
-
-        /*
-        * CHANNEL: Separate bams into target/control
-        * for MACS2 use markdup for both target and control
-        */
-        ch_samtools_bam_markdup
-            .filter { it -> it[0].is_control == false }
-            .set { ch_bam_target }
-        ch_samtools_bam_markdup
-            .filter { it -> it[0].is_control == true }
-            .set { ch_bam_control }
-        //ch_bam_target | view
-        //ch_bam_control | view
-
-        if(params.use_control) {
-            /*
-            * MODULE: Call peaks using SEACR with IgG control
-            */
-            if('seacr' in callers) {
-                /*
-                * CHANNEL: Create target/control pairings
-                */
-                ch_bedgraph_control.map{ row -> [row[0].control_group, row] }
-                .cross( ch_bedgraph_target.map{ row -> [row[0].control_group, row] } )
-                .map {
-                    row ->
-                    [ row[1][1][0], row[1][1][1], row[0][1][1] ]
-                }
-                .set { ch_bedgraph_paired }
-                // EXAMPLE CHANNEL STRUCT: [[META], TARGET_BEDGRAPH, CONTROL_BEDGRAPH]
-
-                SEACR_CALLPEAK_IGG (
-                    ch_bedgraph_paired,
-                    params.seacr_peak_threshold
-                )
-                ch_seacr_peaks_igg       = SEACR_CALLPEAK_IGG.out.bed
-                ch_software_versions = ch_software_versions.mix(SEACR_CALLPEAK_IGG.out.versions)
-                // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                //SEACR_CALLPEAK_IGG.out.bed | view
-            }
-
-            if('seacr' in callers) {
-                /*
-                * CHANNEL: Add fake control channel
-                */
-                ch_bedgraph_target.map{ row-> [ row[0], row[1], [] ] }
-                .set { ch_bedgraph_target_fctrl }
-                // EXAMPLE CHANNEL STRUCT: [[META], BED, FAKE_CTRL]
-                // ch_bedgraph_target_fctrl | view
-
-                SEACR_CALLPEAK_NOIGG (
-                    ch_bedgraph_target_fctrl,
-                    params.seacr_peak_threshold
-                )
-                ch_seacr_peaks_noigg       = SEACR_CALLPEAK_NOIGG.out.bed
-                ch_software_versions = ch_software_versions.mix(SEACR_CALLPEAK_NOIGG.out.versions)
-                // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                //SEACR_NO_IGG.out.bed | view
-            }
-
-            if('seacr' in callers) {
-                /*
-                * CHANNEL: mix igg and noigg SEACR peaks
-                */
-
-                ch_seacr_peaks_intersect = ch_seacr_peaks_igg
-                    .join (ch_seacr_peaks_noigg)
-                    .map {row -> [row[0], row[1], row[2]]}
-
-                SEACR_PEAKS_BEDTOOLS_INTERSECT(
-                    ch_seacr_peaks_intersect,
-                    [[:],[]]
-                )
-                ch_seacr_peaks = SEACR_PEAKS_BEDTOOLS_INTERSECT.out.intersect
-                ch_software_versions = ch_software_versions.mix(SEACR_PEAKS_BEDTOOLS_INTERSECT.out.versions)
-                // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                //SEACR_PEAKS_BEDTOOLS_INTERSECT.out.intersect | view
-            }
-
-            if('macs2' in callers) {
-                /*
-                * CHANNEL: Create target/control pairings
-                */
-                ch_bam_control.map{ row -> [row[0].control_group, row] }
-                .cross( ch_bam_target.map{ row -> [row[0].control_group, row] } )
-                .map {
-                    row ->
-                    [ row[1][1][0], row[1][1][1], row[0][1][1] ]
-                }
-                .set { ch_bam_paired }
-                // EXAMPLE CHANNEL STRUCT: [[META], TARGET_BAM, CONTROL_BAM]
-                //ch_bam_paired | view
-
-                MACS2_CALLPEAK_IGG_NARROW (
-                    ch_bam_paired,
-                    params.macs_gsize
-                )
-                ch_macs2_peaks_igg_narrow       = MACS2_CALLPEAK_IGG_NARROW.out.peak
-                ch_peaks_summits_igg_narrow     = MACS2_CALLPEAK_IGG_NARROW.out.bed
-                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_IGG_NARROW.out.versions)
-
-                MACS2_CALLPEAK_IGG_BROAD (
-                    ch_bam_paired,
-                    params.macs_gsize
-                )
-                ch_macs2_peaks_igg_broad       = MACS2_CALLPEAK_IGG_BROAD.out.peak
-                ch_peaks_summits_igg_broad     = MACS2_CALLPEAK_IGG_BROAD.out.bed
-                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_IGG_BROAD.out.versions)
-
-                // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                //MACS2_CALLPEAK_IGG.out.peak | view
-            }
-
-            if('macs2' in callers) {
-
-                /*
-                * CHANNEL: Add fake control channel
-                */
-                ch_bam_target.map{ row-> [ row[0], row[1], [] ] }
-                .set { ch_samtools_bam_target_fctrl }
-                // EXAMPLE CHANNEL STRUCT: [[META], BAM, FAKE_CTRL]
-                //ch_samtools_bam_target_fctrl | view
-
-                MACS2_CALLPEAK_NOIGG_NARROW (
-                    ch_samtools_bam_target_fctrl,
-                    params.macs_gsize
-                )
-                ch_macs2_peaks_noigg_narrow       = MACS2_CALLPEAK_NOIGG_NARROW.out.peak
-                ch_peaks_summits_noigg_narrow     = MACS2_CALLPEAK_NOIGG_NARROW.out.bed
-                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_NOIGG_NARROW.out.versions)
-
-                MACS2_CALLPEAK_NOIGG_BROAD (
-                    ch_samtools_bam_target_fctrl,
-                    params.macs_gsize
-                )
-                ch_macs2_peaks_noigg_broad       = MACS2_CALLPEAK_NOIGG_BROAD.out.peak
-                ch_peaks_summits_noigg_broad     = MACS2_CALLPEAK_NOIGG_BROAD.out.bed
-                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_NOIGG_NARROW.out.versions)
-
-                // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                // MACS2_CALLPEAK_NOIGG.out.peak | view
-            }
-
-            if('macs2' in callers) {
-                /*
-                * CHANNEL: mix igg and noigg MACS2 narrow peaks
-                */
-
-                ch_macs2_peaks_narrow_intersect = ch_macs2_peaks_igg_narrow
-                    .join (ch_macs2_peaks_noigg_narrow)
-                    .map {row -> [row[0], row[1], row[2]]}
-
-                MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT(
-                    ch_macs2_peaks_narrow_intersect,
-                    [[:],[]]
-                )
-                ch_macs2_peaks_narrow = MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.intersect
-                ch_software_versions = ch_software_versions.mix(MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.versions)
-                // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                //MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.intersect | view
-
-                /*
-                * CHANNEL: mix igg and noigg MACS2 broad peaks
-                */
-
-                ch_macs2_peaks_broad_intersect = ch_macs2_peaks_noigg_broad
-                    .join (ch_macs2_peaks_igg_broad)
-                    .map {row -> [row[0], row[1], row[2]]}
-
-                MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT(
-                    ch_macs2_peaks_broad_intersect,
-                    [[:],[]]
-                )
-                ch_macs2_peaks_broad = MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.intersect
-                ch_software_versions = ch_software_versions.mix(MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.versions)
-                // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                //MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.intersect | view
-
-            }
-
-        }
-        else {
-            /*
-            * MODULE: Call peaks without IgG Control
-            */
-            if('seacr' in callers) {
-                /*
-                * CHANNEL: Add fake control channel
-                */
-                ch_bedgraph_target.map{ row-> [ row[0], row[1], [] ] }
-                .set { ch_bedgraph_target_fctrl }
-                // EXAMPLE CHANNEL STRUCT: [[META], BED, FAKE_CTRL]
-                // ch_bedgraph_target_fctrl | view
-
-                SEACR_CALLPEAK_NOIGG (
-                    ch_bedgraph_target_fctrl,
-                    params.seacr_peak_threshold
-                )
-                ch_seacr_peaks       = SEACR_CALLPEAK_NOIGG.out.bed
-                ch_software_versions = ch_software_versions.mix(SEACR_CALLPEAK_NOIGG.out.versions)
-                // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                //SEACR_NO_IGG.out.bed | view
-            }
-
-            if('macs2' in callers) {
-                /*
-                * CHANNEL: Add fake control channel
-                */
-                ch_bam_target.map{ row-> [ row[0], row[1], [] ] }
-                .set { ch_samtools_bam_target_fctrl }
-                // EXAMPLE CHANNEL STRUCT: [[META], BAM, FAKE_CTRL]
-                //ch_samtools_bam_target_fctrl | view
-
-                MACS2_CALLPEAK_NOIGG_NARROW (
-                    ch_samtools_bam_target_fctrl,
-                    params.macs_gsize
-                )
-                ch_macs2_peaks_narrow       = MACS2_CALLPEAK_NOIGG_NARROW.out.peak
-                ch_peaks_summits_narrow     = MACS2_CALLPEAK_NOIGG_NARROW.out.bed
-                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_NOIGG_NARROW.out.versions)
-
-                MACS2_CALLPEAK_NOIGG_BROAD (
-                    ch_samtools_bam_target_fctrl,
-                    params.macs_gsize
-                )
-                ch_macs2_peaks_broad       = MACS2_CALLPEAK_NOIGG_BROAD.out.peak
-                ch_peaks_summits_broad     = MACS2_CALLPEAK_NOIGG_BROAD.out.bed
-                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_NOIGG_BROAD.out.versions)
-
-                // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                // MACS2_CALLPEAK_NOIGG.out.peak | view
-            }
-        }
-
+        //CALL_PEAKS.out.peaks_final.view()
+        // [ meta, [peaks] ]
     }
 
 
-    if (params.run_qc){
-        /* Run MultiQC */
+    if (params.run_local_read_qc){
+
+        /*
+        * Run MultiQC
+        */
+        multiqc_data = Channel.empty()
         MULTIQC(
-            ch_multiqc_custom_config,
+            ch_multiqc_custom_config.ifEmpty([]),
             ch_bowtie2_log.collect{it[1]}.ifEmpty([]),
             ch_bowtie2_spikein_log.collect{it[1]}.ifEmpty([]),
             ch_samtools_stats.collect{it[1]}.ifEmpty([]),
@@ -762,72 +510,172 @@ workflow CUTANDRUN {
 
         )
 
-        /* Compute fragment length */
-        FRAGMENT_LENGTH(ch_samtools_bam)
-        ch_frag_len = FRAGMENT_LENGTH.out.frag_len
-            .flatten()
-            .collect()
-        //ch_frag_len.view()
+        /*
+        * Collect reads metrics from MultiQC data
+        */
+        READ_METRICS(
+            MULTIQC.out.data
+        )
+        //READ_METRICS.out.csv.view()
+        // path(csv)
 
-        /* Compute reads in peak */
-        ch_macs2_peaks_narrow
-            .concat(
-                ch_macs2_peaks_igg_narrow,
-                ch_macs2_peaks_noigg_narrow,
-                ch_macs2_peaks_broad,
-                ch_macs2_peaks_igg_broad,
-                ch_macs2_peaks_noigg_broad,
-                ch_seacr_peaks,
-                ch_seacr_peaks_igg,
-                ch_seacr_peaks_noigg
-            )
-            .groupTuple(by: 0)
+        /*
+        * Compute fragment length
+        */
+        FRAGMENT_LENGTHS(
+            ch_samtools_bam
+        )
+        //FRAGMENT_LENGTHS.out.txt.view()
+        // [ meta, path(txt) ]
+    }
+
+    if (params.run_local_peak_qc){
+        /*
+        * Compute reads in peak
+        */
+        CALL_PEAKS.out.peaks_final
             .join(ch_samtools_bam)
             .set{ch_peak_bam}
 
-        READS_IN_PEAK( ch_peak_bam )
-        rip_list = READS_IN_PEAK.out.rip
-            .map{ it -> it[1] }
-            .flatten()
-            .collect()
-        //ch_rip.view()
+        READS_IN_PEAK(
+            ch_peak_bam
+        )
+        //READS_IN_PEAK.out.csv.collect{it[1]}.flatten().view()
 
-        /* Collect reads metrics */
-        READ_METRICS( params.input, MULTIQC.out.data, ch_frag_len )
-        read_metrics = READ_METRICS.out.metrics
-        //read_metrics.view()
 
-        /* Collect metrics for original peaks */
-        ch_macs2_peaks_narrow
-            .concat(
-                ch_macs2_peaks_igg_narrow,
-                ch_macs2_peaks_noigg_narrow,
-                ch_macs2_peaks_broad,
-                ch_macs2_peaks_igg_broad,
-                ch_macs2_peaks_noigg_broad,
-                ch_seacr_peaks,
-                ch_seacr_peaks_igg,
-                ch_seacr_peaks_noigg
-            )
-            .map{ it -> it[1]  }
-            .collect()
-            .set{ peak_list }
+        /*
+        * Collect metrics for original peaks
+        */
+        ORIGINAL_PEAKS(
+            CALL_PEAKS.out.peaks_all
+        )
+        //ORIGINAL_PEAKS.out.csv.view()
+        // path(peak_metrics)
 
-        ORIGINAL_PEAK_METRICS( read_metrics, peak_list, rip_list)
-        original_peaks = ORIGINAL_PEAK_METRICS.out.metrics
-        // original_peaks.view()
+        /*
+        * Collect peak widths for final peaks
+        */
+        ORIGINAL_PEAK_WIDTHS(
+            CALL_PEAKS.out.peaks_final
+        )
+        //ORIGINAL_PEAK_WIDTHS.out.csv.view()
+        // path(peak_widths)
+
+        /*
+        * Generate replicated peaks and collect metrics
+        */
+        REPLICATED_PEAKS(
+            CALL_PEAKS.out.peaks_final
+            .filter { it[0].call_rep_peak == true }
+            .map { it -> [ [it[0].group, it[0].target], it[1] ]}
+            .groupTuple (by: 0)
+            .map { it -> [ it[0][0], it[0][1], it[1].flatten().collect() ] },
+            params.min_replicates
+        )
+        //REPLICATED_PEAKS.out.bed
+        // [ target, [peaks] ]
+
+        /*
+        * Generate consensus peaks and collect metrics
+        */
+        CONSENSUS_PEAKS(
+            samplesheet,
+            REPLICATED_PEAKS.out.bed
+            .groupTuple ( by: 0 )
+            .map { it -> [ it[0], it[1].flatten().collect() ] }
+        )
+        //CONSENSUS_PEAKS.out.bed.view()
+        // [ target, path(conp) ]
+
+        /*
+        * Annotate consensus peaks
+        */
+        ANNOTATE_CONSENSUS_PEAKS(
+            params.genome,
+            file("$projectDir/assets/local/${params.genome}/genes.proteinCoding_lncRNA.gtf", checkIfExists: true),
+            CONSENSUS_PEAKS.out.bed.collect{it[1]}.flatten()
+        )
+        //ANNOTATE_CONSENSUS_PEAKS.out.txt.view()
+
     }
 
-    /* Generate replicated peaks and collect metrics  */
-    REPLICATED_PEAKS( params.input, original_peaks, params.min_replicates )
-    replicated_peaks = REPLICATED_PEAKS.out.metrics
+    if (params.run_local_dp){
+            /*
+            * Count reads in consensus peaks
+            */
+            // ch_samtools_bam.view()
+            CONSENSUS_PEAKS.out.bed
+                .cross (
+                    ch_samtools_bam
+                        .filter { it[0].target != "IgG" }
+                        .map { it -> [ it[0].target, it ] }
+                )
+                .map { it -> [ it[1][1][0], it[1][1][1], it[0][1] ]}
+                .set { ch_bam_conp }
+            //ch_bam_conp.view()
+            // [ meta, bam, [conp] ]
 
-    /* Generate consensus peaks and collect metrics  */
-    CONSENSUS_PEAKS( replicated_peaks )
-    consensus_peaks = CONSENSUS_PEAKS.out.metrics
+            READS_IN_CONSENSUS_PEAKS(
+                ch_bam_conp
+            )
+            //READS_IN_CONSENSUS_PEAKS.out.count.view()
+            // [ target, [path/to/fragmentCounts.txt] ]
 
-    /* Make plots for report */
-    PLOT_METRICS( read_metrics, original_peaks, replicated_peaks, consensus_peaks )
+            READS_IN_CONSENSUS_PEAKS.out.count
+                .groupTuple( by: 0 )
+                .map { it -> [ it[0], it[1].flatten().collect() ]}
+                .cross ( CONSENSUS_PEAKS.out.bed )
+                .map { it -> [ it[0][0], it[0][1], it[1][1] ]}
+                .set { ch_tgt_reads_conp }
+            //ch_tgt_reads_conp.view()
+            // [ target, [read_count], [conp] ]
+
+            /*
+            * Call differential peaks
+            */
+            ch_comparison = params.comparison ? file ( params.comparison, checkIfExists: true ) : ch_dummy_file
+            DIFFERENTIAL_PEAKS(
+                samplesheet,
+                ch_comparison,
+                ch_tgt_reads_conp
+            )
+            //DIFFERENTIAL_PEAKS.out.data.view()
+
+    }
+
+    if (params.run_local_report){
+            /*
+            * Make plots for report
+            */
+            GENERATE_REPORT(
+                samplesheet,
+                READ_METRICS.out.csv,
+                FRAGMENT_LENGTHS.out.txt.collect{it[1]}.ifEmpty([]),
+                ORIGINAL_PEAKS.out.csv.collect{it[1]}.ifEmpty([]),
+                ORIGINAL_PEAK_WIDTHS.out.csv.collect{it[1]}.ifEmpty([]),
+                READS_IN_PEAK.out.csv.collect{it[1]}.ifEmpty([]),
+                REPLICATED_PEAKS.out.csv.collect{it[1]}.ifEmpty([]),
+                CONSENSUS_PEAKS.out.csv.collect{it[1]}.ifEmpty([]),
+                CONSENSUS_PEAKS.out.bed.collect{it[1]}.flatten().collect().ifEmpty([]),
+                ANNOTATE_CONSENSUS_PEAKS.out.txt.collect{it[1]}.ifEmpty([]),
+                DIFFERENTIAL_PEAKS.out.data.flatten().collect().ifEmpty([]),
+                file("$projectDir/assets/local/report.Rmd", checkIfExists: true)
+            )
+
+            /*
+            * generate html report
+
+            GENERATE_REPORT(
+                read_metrics,
+                ORIGINAL_PEAK_METRICS.out.data,
+                REPLICATED_PEAKS.out.data,
+                CONSENSUS_PEAKS.out.data
+            )
+            */
+
+    }
+
+
 
 }
 

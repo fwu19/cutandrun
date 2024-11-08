@@ -3,21 +3,21 @@ process REPLICATED_PEAKS {
 
     label "process_single"
 
-    tag "Generate replicated peaks and collect metrics"
+    tag "Generate replicated peaks from $group"
 
     input:
-    path ( input )
-    path ( original_peaks )
+    tuple val(group), val(target), path ( "peaks/*" )
     val ( min_reps )
 
 
     output:
-    path ( "*.{csv,rds}" ), emit: metrics
-    path ( "*.bed" ), emit: peak
+    tuple val(target), path ( "*.csv" ), emit: csv, optional: true
+    tuple val(target), path ( "*.rds" ), emit: rds, optional: true
+    tuple val(target), path ( "*.bed" ), emit: bed, optional: true
 
     script:
     """
-    replicated_peaks.r $input $min_reps
+    replicated_peaks.r $group $min_reps
 
     """
 

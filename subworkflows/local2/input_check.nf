@@ -7,9 +7,13 @@ include { SAMPLESHEET_CHECK } from '../../modules/local2/samplesheet_check'
 workflow INPUT_CHECK {
     take:
     samplesheet // file: /path/to/samplesheet.csv
+    metadata
 
     main:
-    SAMPLESHEET_CHECK ( samplesheet )
+    SAMPLESHEET_CHECK (
+        samplesheet,
+        metadata
+    )
 
     SAMPLESHEET_CHECK.out.csv
         .splitCsv ( header:true, sep:"," )
@@ -18,18 +22,19 @@ workflow INPUT_CHECK {
 
     emit:
     reads // channel: [ val(meta), [ reads ] ]
+    samplesheet = SAMPLESHEET_CHECK.out.csv
     versions = SAMPLESHEET_CHECK.out.versions
 }
 
 // Function to get list of [ meta, [ fastq_1, fastq_2 ] ]
 def get_samplesheet_paths(LinkedHashMap row) {
-    def meta = [:]
-    meta.id            = row.id
-    meta.group         = row.group
-    meta.replicate     = row.replicate.toInteger()
-    meta.single_end    = row.single_end.toBoolean()
-    meta.is_control    = row.is_control.toBoolean()
-    meta.control_group = meta.is_control ? meta.group : row.control
+    def meta = row
+    meta.single_end    = meta.single_end.toBoolean()
+    meta.is_control    = meta.is_control.toBoolean()
+    meta.call_peak       = meta.call_peak.toBoolean()
+    meta.call_rep_peak   = meta.call_rep_peak.toBoolean()
+    meta.call_con_peak   = meta.call_con_peak.toBoolean()
+
 
     def array = []
     if (!file(row.fastq_1).exists()) {

@@ -1,4 +1,4 @@
-process FRAGMENT_LENGTH {
+process FRAGMENT_LENGTHS {
     label "process_single"
 
     tag "Compute fragment lengths on ${meta.id}"
@@ -12,10 +12,10 @@ process FRAGMENT_LENGTH {
     tuple val (meta), path (bam)
 
     output:
-    tuple path("*.fragment_length.txt"), emit: frag_len
+    tuple val (meta), path("*.fragment_lengths.txt"), emit: txt
 
     script:
     """
-    fragment_length.sh ${meta.id} $bam
+    fragment_lengths.sh ${meta.id} $bam
     """
 }

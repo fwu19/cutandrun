@@ -6,11 +6,8 @@ library(dplyr)
 library(GenomicRanges)
 
 args <- commandArgs(T) # path/to/original_peaks.rds, path/to/original_peak_metrics.csv
-ss <- read.csv(args[1])
+group.id <- args[1] # will be used as output prefix
 min.reps <- as.integer(args[2])
-peaks <- readRDS('original_peaks.rds')
-npeaks <- read.csv('original_peak_metrics.csv')
-targets <- sort(setdiff(unique(npeaks$target), 'IgG')) 
 
 merge_reps <- function(rep.peaks, min.reps){
   require(GenomicRanges)
@@ -42,86 +39,82 @@ merge_reps <- function(rep.peaks, min.reps){
   }
 }
 
-## exclude some samples if required
-if ('exclude_rep_peaks' %in% colnames(ss)){
-  npeaks <- npeaks %>% 
-    left_join(
-      ss %>% dplyr::select(id, exclude_rep_peaks),
-      by = 'id'
-    )
-}else{
-  npeaks$exclude_rep_peaks <- 'false'
-}
-npeaks <- npeaks %>% 
-  filter(exclude_rep_peaks == 'false')
 
-if ('filtered' %in% colnames(npeaks) & sum(npeaks$filtered %in% 'filtered') > 0){
-  k <- npeaks$filtered %in% 'filtered'
-}else{
-  k <- 1:nrow(npeaks)
-}
+## read the final set of peaks (filtered peaks or target-only peaks if control is not available)
+peak.list <- list.files('peaks/', full.names = T)
+peaks <- lapply(
+  peak.list,
+  function(fname){
+    if(file.size(fname) > 0){
+      GenomicRanges::makeGRangesFromDataFrame(
+        read.delim(fname, header = F)[1:3], seqnames.field = 'V1', start.field = 'V2', end.field = 'V3', starts.in.df.are.0based = T
+      )
+    }
+  }); names(peaks) <- basename(peak.list)
+
+## exclude some samples if required
+npeaks <- data.frame(
+  file = names(peaks)
+) %>% 
+  mutate(
+    id = gsub('.macs2.*|.seacr.*', '', file),
+    caller = case_when(
+      grepl('seacr', file) ~ 'SEACR',
+      grepl('broad', file) ~ 'MACS2broad',
+      grepl('narrow', file) ~ 'MACS2narrow',
+      TRUE ~ 'others'
+    )
+  ) 
+
 reps <- lapply(
-  split(peaks[npeaks$file[k]], paste(npeaks$caller, npeaks$sample_group, npeaks$target, sep = ':')[k]),
+  split(peaks, npeaks$caller),
   merge_reps, min.rep = min.reps
 )
 
 ## summarize reproduced peaks ####
-df <- as.data.frame(data.table::rbindlist(mapply(
-  function(pk, id){
-    data.frame(rep.id = id, nrep = length(pk))
-  }, reps, names(reps), SIMPLIFY = F
-), use.names = T, fill = T))
-df[,c( 'caller', 'sample_group', 'target')] <- do.call(rbind, strsplit(df$rep.id, split = ':'))
-nreps <- npeaks %>% 
-  filter(filtered == 'filtered') %>% 
-  mutate(sample_replicate = paste0('rep', sample_replicate, '.peaks')) %>% 
-  dplyr::select(sample_group, target, caller, sample_replicate, npeak) %>% 
-  tidyr::pivot_wider(names_from = sample_replicate, values_from = npeak) 
-nreps$valid.replicates <- rowSums(nreps[, grep('^rep.*peaks$', colnames(nreps))]>0, na.rm = T)
-
-nreps <- nreps %>%
-  left_join(
-    df %>% dplyr::rename("replicated.peaks" = "nrep"),
-    by = c('sample_group', 'target', 'caller')
-  ) %>% 
+nreps <- bind_rows(mapply(
+      function(pk, caller){
+        data.frame(caller = caller, nrep = length(pk))
+      }, reps, names(reps), SIMPLIFY = F
+    )) %>% 
   mutate(
-    replicated.peaks = ifelse(valid.replicates < 2, NA, replicated.peaks)
-  ) %>%
-  arrange(sample_group, target, caller) %>% 
-  dplyr::select(-valid.replicates) %>% 
-  relocate(rep.id, .after = last_col())
-
-
-
+    group = group.id
+  ) %>% 
+  left_join(
+    npeaks %>% 
+      group_by(caller) %>% 
+      summarise(
+        caller = unique(caller),
+        ids = paste(id, collapse = ';')
+      ) %>% 
+      dplyr::select(caller, ids),
+    by = 'caller'
+  )
 
 
 ## save results ####
-saveRDS(reps, 'replicated_peaks.rds')
-write.table(nreps, 'replicated_peak_metrics.csv', sep = ',', quote = F, row.names = F)
+saveRDS(reps, paste(group.id, 'replicated_peaks.rds', sep = '.'))
+write.table(nreps, paste(group.id, 'replicated_peaks.csv', sep = '.'), sep = ',', quote = F, row.names = F)
 
 
 ## write out replicated peaks ####
-rep.files <- sapply(
-  strsplit(names(reps), split = ":"),
-  function(v){
-    paste0(
-      v[2], '_', v[3], '.', 
-      dplyr::case_when(
-        grepl('narrow', v[1]) ~ 'narrow_peaks.bed', 
-        grepl('broad', v[1]) ~ 'broad_peaks.bed',
-        TRUE ~ 'stringent.bed')
+rep.files <- paste(
+      group.id, 
+      plyr::mapvalues(names(reps), from = c('MACS2broad', 'MACS2narrow', 'SEACR'), to = c('macs2_broad_peaks.bed', 'macs2_narrow_peaks.bed', 'seacr_peaks.bed')), 
+      sep = '.'
     )
-  }
-)
+
 
 mapply(
   function(pk, fname){
     if (length(pk) > 0){
       df <- as.data.frame(pk)[1:3]
       df[,2] <- df[,2] - 1
-      
       write.table(df, fname, sep = '\t', quote = F, row.names = F, col.names = F)
     }
-  }, reps, rep.files, SIMPLIFY = F
+  }, 
+  reps, 
+  rep.files, 
+  SIMPLIFY = F
 )       
 

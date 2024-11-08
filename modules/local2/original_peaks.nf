@@ -1,24 +1,22 @@
-process ORIGINAL_PEAK_METRICS {
+process ORIGINAL_PEAKS {
     label "process_single"
 
-    tag "Collect QC of original peaks"
+    tag "Collect metrics of original peaks from ${meta.id}"
 
     module = ['fhR/4.1.2-foss-2021b']
 
     input:
-    path( read_metrics )
-    path( peak_list, stageAs: "peaks/*" )
-    path( rip_list, stageAs: "rip/*" )
+    tuple val(meta), path( "peaks/*" )
 
     output:
-    path( "*.{rds,csv}" ), emit: metrics
+    tuple val(meta), path( "*.csv" ), emit: csv
 
     script:
     """
-    original_peak_metrics.r
+    original_peaks.r ${meta.id}
 
     """
 
     // input files: read_metrics.csv fragment_length.rds peaks/*.narrowPeak peaks/*.broadPeak peak/*.bed rip/*.reads_in_peak.csv
-
+    // output files: [id].original_peaks.csv
 }

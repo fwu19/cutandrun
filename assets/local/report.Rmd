@@ -1,0 +1,512 @@
+---
+title: "Cut&Run analysis"
+author: ""
+date: "`r format(Sys.time(), '%B %d , %Y')`"
+output: 
+    html_document:
+        toc: TRUE
+        toc_float: FALSE
+        toc_depth: 2
+        toc_collapsed: FALSE
+        theme: lumen
+        number_sections: FALSE
+        coding_folding: hide
+        code_download: FALSE
+editor_options: 
+  chunk_output_type: console
+  markdown: 
+    wrap: sentence
+params:
+  dat.dir: "./"
+---
+
+```{r setup, include=FALSE, dev='CairoPNG'}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning=FALSE, dev="CairoPNG")
+knitr::opts_knit$set(root.dir = params$dat.dir)
+
+options(stringsAsFactors = F)
+options(scipen = 99)
+library(Cairo)
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+library(kableExtra)
+
+```
+
+```{r read_qc}
+## read precomputed data
+ss <- read.csv('sample_sheet.csv')
+
+dat <- readRDS('data.rds')
+meta <- dat$meta
+figs <- readRDS('figs.rds')
+
+## initiate variables
+targets <- sort(setdiff(unique(meta$target), c('IgG', 'Input'))) # targets to make QC plots
+ntargets <- length(targets)
+ngroups <- length(unique(meta$sample_group))
+
+fig.read.width <- 12
+fig.read.height <- max(ngroups*1.2 +2, 6)
+
+fig.peak.width <- 12
+fig.peak.height <- max(ngroups*1.2 +2, 8)
+
+fig.rep.width <- 12
+fig.rep.height <- max(ngroups +2, 8)
+
+fig.conp.width <- ceiling(sqrt(ngroups))*3
+fig.conp.height <- ceiling(ngroups/ceiling(sqrt(ngroups)))*3
+
+```
+
+```{r make_tabs, include=FALSE}
+# Function to create multiple tabs
+make_tabs <- function(title, contents){
+  cat(title, "\n\n")
+  for (cnt in contents){print(cnt); cat("\n")}
+  cat("\n\n")
+}
+```
+
+## Summary
+
+This document describes the data analysis of auto Cut & Run experiments.
+
+$$\\[0.5in]$$
+
+## Sample sheet
+
+```{r sample_sheet}
+
+ss %>% 
+  select(c(id, sample_group, target, sample_replicate, control)) %>%
+  arrange(sample_group, target, sample_replicate) %>% 
+  unique.data.frame() %>% 
+  DT::datatable(
+  class = 'cell-border stripe', 
+  rownames = T,  
+  filter = 'top', 
+  editable = F, 
+  extensions = 'Buttons', 
+  options = list(
+    pageLength = 6, 
+    dom = 'Bfrtip',
+    buttons = c('csv')
+  ))
+
+```
+
+$$\\[0.5in]$$
+
+
+## QC reads {.tabset .tabset-pills}
+
+### Plots {.tabset .tabset-pills}
+**A. Sequenced reads** - number of paired reads after adapter trimming and passed to alignment.
+
+**B. Reads aligned to target genome** - number of reads aligned to the target genome.
+
+**C. Alignment rate to target genome** - fraction of reads aligned to the target genome.
+
+**D. Reads aligned to E. coli genome** - number of reads aligned to E. coli genome.
+
+**E. Duplication rate** - fraction of duplicated reads.
+
+**F. Estimated library size** - estimated number of fragments in a library given the duplication rate.
+
+**G. Fragment length** - fragment length estimated based on paired-end sequencing.  
+
+```{r read_plots, results='asis', fig.width=fig.read.width, fig.height=fig.read.height}
+qc_read <- c("seq_depth", "aligned_reads", "aligned_pct", "aligned_reads_spikein", "dup_rate", "est_lib_size", "frag_lens_dens")
+
+## targeted proteins
+for (tgt in targets){
+  p1 <- wrap_plots(
+    c(lapply(figs[qc_read], function(x){x[[tgt]]}), list(guide_area())), 
+    ncol = 3, guides = 'collect')+
+    plot_annotation(tag_levels = 'A')+
+    plot_layout(design = c(
+      area(1,1,4,9), area(1,11,4,19), area(1,21,4,29), 
+      area(6,1,9,9), area(6,11,9,19), area(6,21,9,29), 
+      area(11,1,19,9), area(11,11,19,19)
+      ))
+  
+  cat("\n\n")
+  cat("####", tgt, "\n\n")
+  print(p1)
+  cat("\n\n")
+  
+}
+
+
+```
+
+```{r igg_plots, eval=TRUE, results='asis', fig.width=fig.read.width, fig.height=fig.read.height}
+## IgG
+p1 <- wrap_plots(
+  c(lapply(figs[qc_read[1:6]], function(x){x$IgG}), list(guide_area())),
+  ncol = 3, guides = "collect")+
+    plot_annotation(tag_levels = 'A')+
+  plot_layout(design = c(
+    area(1,1,4,9), area(1,11,4,19), area(1,21,4,29), 
+    area(6,1,9,9), area(6,11,9,19), area(6,21,9,29), 
+    area(11,1,13,9)
+    ))
+  cat("\n\n")
+cat("####", "IgG", "\n\n")
+print(p1)
+cat("\n\n")
+
+```
+
+
+### Metrics
+```{r}
+meta %>% 
+  mutate(
+    sample_id = group,
+    bt2_total_aligned_Ecoli = bt2_total_aligned_spikein,
+    Ecoli_alignment_rate = bt2_total_aligned_spikein/bt2_total_reads_spikein,
+  ) %>% 
+  arrange(sample_group, target, sample_replicate) %>% 
+  dplyr::select(sample_id, sample_group, target, sample_replicate, bt2_total_reads_target, bt2_total_aligned_target, bt2_overall_alignment_rate_target, bt2_total_aligned_spikein, bt2_overall_alignment_rate_spikein, dedup_percent_duplication, dedup_estimated_library_size) %>% 
+  unique.data.frame() %>% 
+  DT::datatable(
+  class = 'cell-border stripe', 
+  rownames = T,  
+  filter = 'top', 
+  editable = F, 
+  extensions = 'Buttons', 
+  options = list(
+    pageLength = 6, 
+    dom = 'Bfrtip',
+    buttons = c('csv')
+  )) %>% 
+  DT::formatRound(columns=c('bt2_overall_alignment_rate_target', 'bt2_overall_alignment_rate_spikein', 'dedup_percent_duplication'), digits=4)
+
+```
+
+##  {.unlisted .unnumbered}
+
+$$\\[0.5in]$$
+
+## QC peaks {.tabset .tabset-pills}
+
+### Individual samples {.tabset .tabset-pills}
+**A. Peaks from each sample** - number of peaks called from each library.
+For each peak caller, both target-only peaks and target-against-IgG peaks were called and common peaks (shown as solid dots and referred to as filtered peaks) were retained for further analysis.
+
+**B. Fraction of reads in peak** - fraction of paired-end reads in filtered peaks.
+
+**C. Peak width** - peak width distribution of the filtered set.
+The upper bound of x-axis was limited to the maximum 3rd quantile of datasets.
+
+
+$$\\[0.1in]$$
+
+```{r peak_plots, results='asis', fig.width=fig.peak.width, fig.height=fig.peak.height}
+qc_peak <- c("count_peaks", "peak_frip", "peak_width")
+
+for (tgt in targets){
+  p2 <- wrap_plots(
+    c(lapply(figs[qc_peak], function(x){x[[tgt]]}), list(guide_area())), 
+    guides = 'collect')+
+    plot_annotation(tag_levels = 'A')+
+    plot_layout(design = c(
+      area(1,1,9,19), area(1,21,9,29), 
+      area(11,1,19,19), area(11,21,19,29)
+      ))
+  
+  cat("\n\n")
+  cat("####", tgt, "\n\n")
+  print(p2)
+  cat("\n\n")
+  
+}
+
+
+```
+
+
+### Replicated peaks {.tabset .tabset-pills}
+
+For each sample group, peaks from all replicates were pooled and merged into non-overlapping peaks.
+Only **replicated peaks** (contributed by at least two replicates) were kept for further analysis.\
+Note: HT_H3K4me3_2 yielded few reads and peaks and were not used in generation of replicated peaks and other downstream analyses. \
+
+$$\\[0.1in]$$
+
+
+```{r}
+dat$nreps  %>% 
+  relocate(target, sample_group, group, caller, nrep, ids) %>% 
+  DT::datatable(
+  class = 'cell-border stripe', 
+  rownames = T,  
+  filter = 'top', 
+  editable = F, 
+  extensions = 'Buttons', 
+  options = list(
+    pageLength = 10, 
+    dom = 'Bfrtip',
+    buttons = c('csv')
+  ))
+```
+
+
+### Consensus peaks {.tabset .tabset-pills}
+
+For each target, peaks from all conditions were pooled, and overlapping peaks were merged into a set of consensus peaks across conditions.\
+
+$$\\[0.1in]$$
+
+#### Peak count
+
+```{r conp_count}
+data.table::rbindlist(lapply(
+  split(dat$nconps, dat$nconps$target),
+  function(x){
+    data.frame(
+      target = x$target[1],
+      MACS2_narrow_peaks = ifelse('MACS2narrow' %in% x$caller, x$nconp[x$caller == 'MACS2narrow'], NA),
+      MACS2_broad_peaks = ifelse('MACS2broad' %in% x$caller, x$nconp[x$caller == 'MACS2broad'], NA),
+      SEACR_peaks = ifelse('SEACR' %in% x$caller, x$nconp[x$caller == 'SEACR'], NA)
+    )
+  }
+)) %>% 
+  kable %>%
+  kable_styling("striped", full_width = F) %>%
+  scroll_box(width = "700px", height = "200px")
+
+```
+
+#### Genomic distribution
+
+```{r fig.width=10, fig.height=10}
+qc <- 'conp_ann'
+p <- wrap_plots(lapply(
+  paste(rep(targets,each=3), c('macs2_narrow_peaks', 'macs2_broad_peaks', 'seacr_peaks'), sep = '.'),
+  function(id){
+    if(id %in% names(figs[[qc]])){
+      figs[[qc]][[id]]
+    }else{
+      plot_spacer()
+    }
+  }), ncol = 3)
+
+
+print(p)
+```
+
+#### Compare sample groups
+
+Plot distribution of consensus peaks in each sample group.\
+*shared* = peaks contributed by at least 2 sample groups.\
+*unique* = unqiue to the sample group
+.\
+
+```{r fig.width=9}
+wrap_plots(figs$rep2conp, ncol = 3)
+
+```
+
+#### MACS2 vs SEACR
+
+Compare consensus peaks generated by MACS2 and SEACR.\
+
+```{r fig.width=fig.conp.width, fig.height=fig.conp.height}
+p <- figs$seacr2macs[!sapply(figs$seacr2macs, is.null)]
+wrap_plots(p, ncol = ceiling(sqrt(ngroups)))
+
+```
+
+
+
+
+##  {.unlisted .unnumbered}
+
+$$\\[0.5in]$$
+
+## Differential peaks (DP)
+
+### DP Summary
+
+```{r dp_summary, eval=TRUE}
+read.delim('differential_peaks/DP_summary.txt') %>% 
+  DT::datatable(
+  class = 'cell-border stripe', 
+  rownames = T,  
+  filter = 'top', 
+  editable = F, 
+  extensions = 'Buttons', 
+  options = list(
+    pageLength = 6, 
+    dom = 'Bfrtip',
+    buttons = c('csv')
+  ))
+```
+
+$$\\[0.2in]$$
+
+### DP plots {.tabset .tabset-pills}
+
+```{r display_plots, eval=TRUE, results='asis', fig.cap=c('Fig. Differential expression analysis. (A) PCA plot. (B) MA/MD plot. (C) Volcano plot'), fig.width=12, fig.height=4}
+dp.list <- readRDS('differential_peaks/dp.rds')
+
+for (tgt in targets){
+  cat ('####', tgt, '{.tabset .tabset-pills}\n\n') # target level
+  
+  cnp <- grep(tgt, names(dp.list), value = T)
+  
+  for (i in cnp){
+    cat ('#####', i, '{.tabset .tabset-pills}\n\n') # conp level
+    dp <- dp.list[[i]]
+    dp[sapply(dp, is.null)] <- NULL
+    for (j in 1:length(dp)){
+      plist <- dp[[j]]$plots
+      p <- wrap_plots(plist, nrow = 1) + plot_annotation(tag_levels = 'A')
+      
+      make_tabs(
+        paste("######", names(dp)[j]),
+        list(p)
+      )
+    }
+  }
+}
+```
+
+## {.unnumbered .unlisted}
+
+$$\\[0.5in]$$
+
+## Delivered files
+
+### [Analysis results](./)
+
+#### [01_prealign/](./01_prealign/)
+
+FastQC output of raw fastq and adapter-trimmed fastq, which is described at <https://www.bioinformatics.babraham.ac.uk/projects/fastqc/>
+
+$$\\[0.1in]$$
+
+#### [02_alignments/bowtie2/target/](./02_alignments/bowtie2/target/)
+
+*sample_name.target.markdup.bam* -- read alignment to hg38 genome with duplicated reads marked
+
+*sample_name.target.dedup.bam* -- read alignment to hg38 genome with duplicated reads removed
+
+$$\\[0.1in]$$
+
+#### [03_peak_calling/](./03_peak_calling/)
+
+-   MACS2/
+
+MACS2 peaks called with all IgG reads
+
+*sample_name.noControl.narrow_peaks.narrowPeak -- target-only narrow peaks*
+
+*sample_name.toIgG.narrow_peaks.narrowPeak* -- IgG-controlled narrow peaks
+
+sample_name*.toIgG.narrow_peaks.**filtered**.narrowPeak -- IgG-controlled narrow peaks that overlap with target -only narrow peaks*
+
+*sample_name .noControl.broad_peaks.broadPeak* -- target-only broad peaks
+
+sample_name*.toIgG. broad_peaks.broadPeak -- IgG-controlled broad peaks*
+
+*sample_name.toIgG. broad_peaks.**filtered**.broadPeak* -- target-only broad peaks that overlap with IgG-controlled broad peaks
+
+
+-   SEACR/
+
+SEACR peaks called with deduplicated IgG reads
+
+*sample_name.IgG.norm.stringent.bed* -- IgG normalized, stringent mode\*
+
+*sample_name.top01.stringent.bed* -- target only, top 1% signal
+
+*sample_name. IgG.norm.stringent.**filtered**.bed* -- IgG normalized peaks that overlap with target-only peaks
+
+
+$$\\[0.1in]$$
+
+
+#### [05_genome_coverage/](./05_genome_coverage/)
+
+*sample_name.target.markdup.bedgraph* -- unnormalized genome coverage for SEACR.
+
+*sample_name.target.markdup.CPM.bw* -- normalized genome coverage (CPM, count per million) for IGV.
+
+*sample_name.target.dedup.CPM.bw* -- normalized genome coverage (CPM, count per million) of deduplicated IgG reads for IGV.
+
+$$\\[0.1in]$$
+
+
+#### [06_replicated_peaks/](./06_replicated_peaks/)
+
+Filtered peaks from each replicate were pooled and merged into a set of non-overlapping peaks.
+Peaks only present in one replicate were excluded.\
+*[sample_group].[target].narrow_peaks.bed* -- MACS2 narrow peaks merged from MACS2_IgG_markdup/*.narrow_peaks.filtered.narrowPeak\
+*[sample_group].[target].broad_peaks.bed\* -- MACS2 broad peaks merged from MACS2_IgG_markdup/*.broad_peaks.filtered.broadPeak.\
+*[sample_group].[target].stringent.bed\* -- SEACR peaks merged from SEACR_IgG_dedup/\*/\*.filtered.bed.\
+
+$$\\[0.1in]$$
+
+#### [07_consensus_peaks/](./07_consensus_peaks/)
+
+consensus peaks for each target by merging overlapping replicated peaks across sample groups.\
+*_annotation/* -- HOMER annotation of consensus peaks.\
+*_annotation/_gtf/* -- GTF file used to run HOMER peak annotation.
+
+
+$$\\[0.1in]$$
+
+
+
+
+
+
+#### [08_differential_peaks/](./08_differential_peaks/)
+
+*_reads_counts_in_peak/* -- read counts in each consensus peak and each sample.\
+
+Each comparison has a subfolder with the following files.\
+  *rawCounts.txt* contains read counts of each consensus peak region across samples.\
+  *[target].txt* has edgeR output (logFC, logCPM, p-value, BH-adjusted FDR), normalized expression in FPKM (fragments per kilo base per million). In column is.sig and (optionally) is.sig2 of the text file, differential peaks are defined with two sets of thresholds (see FDR.cutoff, FC.cutoff, FDR.cutoff2 and FC.cutoff2 in the section **DP summary** for cutoff values). \
+  PDF files contain PCA, MD/MA and volcano plots (also included in the section **DE plots**). \
+
+$$\\[0.1in]$$
+
+## {.unnumbered .unlisted}
+
+$$\\[0.5in]$$
+
+## Methods
+
+(Tool references are provided as hyperlinks.)
+
+Read quality was examined using [FastQC](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/).
+Reads were aligned to the reference genome using [Bowtie2](https://www.nature.com/articles/nmeth.1923).
+Genome coverage profiles were generated using [bedtools genomecov](https://academic.oup.com/bioinformatics/article/26/6/841/244688).
+Both [MACS2](https://genomebiology.biomedcentral.com/articles/10.1186/gb-2008-9-9-r137) and [SEACR](https://doi.org/10.1186/s13072-019-0287-4) were used to call peaks from a sample.
+IgG reads were deduplicated using [GATK MarkDuplicates](http://dx.doi.org/10.1101/gr.107524.110).
+MACS2 was run in both target-only and IgG-controlled (using all IgG reads) modes.
+For narrow peaks used for TFs and some histone marks (e.g. H3K4me3), IgG-controlled peaks were kept for downstream analysis if they meet the following criteria: overlapping with treatment-only peaks, q-value \< 0.01 and enrichment \> 2. For broad peaks used for some histone marks (e.g. H3K27me3) and proteins targeting broad domains, target-only peaks were kept for downstream analysis if they meet the follow criteria: overlapping with IgG-controlled peaks, q-value \< 0.01 and enrichment \> 2.
+SEACR was run with IgG normalization (using deduplicated reads) and with top 1% of peaks reported, both in stringent mode. IgG-normalized peaks that overlap with top 1% of peaks were kept for further analysis.
+
+
+## {.unnumbered .unlisted}
+
+$$\\[0.5in]$$
+
+
+## Acknowledgement
+
+(For publication, please include the following acknowledgement) This research was supported by the Genomics & Bioinformatics Shared Resource of the Fred Hutch/University of Washington/Seattle Children's Cancer Consortium ([P30 CA015704](https://www.cancerconsortium.org/about.html)).
+
+## {.unnumbered .unlisted}
+
+$$\\[0.5in]$$
+
+

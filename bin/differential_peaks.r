@@ -7,22 +7,23 @@ library(ggplot2)
 library(patchwork)
 
 ## functions ####
-generate_count_matrix <- function(conp.bed, infiles){
+generate_count_matrix <- function(conp.bed, infiles, ids = NULL){
 
-    conp <- read.delim(conp.bed, header = F, col.names = c('chrom', 'start', 'end', 'conp.id', 'sample.groups', 'npeak'))
+    conp <- read.delim(conp.bed, header = F, col.names = c('chrom', 'start', 'end', 'conp.id', 'sample.groups', 'npeak')) %>% 
+        mutate(length = end - start)
     
-    cts <- cbind(
-        conp[1:5],
-        read.delim(infiles[1], header = T, comment.char = '#')[6],
-        lapply(
+    cts <- do.call(cbind, lapply(
         infiles, function(fname){
             df <- read.delim(fname, header = T, comment.char = '#')
             stopifnot(identical(conp$conp.id, df$Geneid))
             df[7]
         }
     ))
-    colnames(cts)[7:ncol(cts)] <- gsub('.fragmentCounts.txt', '', basename(infiles))
-    cts
+    if (!is.null(ids)){
+        colnames(cts) <- ids
+    }
+    
+    return(cbind(conp, cts))
 }
 
 count2dgelist <- function(counts.tsv=NULL, return.counts = T, pattern2remove="^X|.bam$", counts=NULL, out.dir=NULL, feature.cols=1:7, samples = NULL){
@@ -141,6 +142,8 @@ run_da <- function(
     ## retrieve and process data ####
     if(!is.null(group)){y0$samples$group <- group}
     j <- y0$samples$group %in% c(control.group, test.group)
+    
+    if (sum(j) == 0){ return(NULL) }
     
     y <- y0[,j]
     y$samples$group <- ifelse(y$samples$group %in% control.group, 'control', 'test')
@@ -401,102 +404,127 @@ recal_sig <- function(txt, col.sig, fdr, lfc){
 }
 
 ## wrapper
-wrapper_one_conp <- function(ss, cmp, cnp, in.dir, out.dir, fdr = 0.05, lfc = log2(1.5), fdr2 = 0.01, lfc2 = 1){
-    out.dir <- paste(out.dir, gsub('\\.bed$', '', basename(cnp)), sep = '/')
-    if(!dir.exists(out.dir)){dir.create(out.dir, recursive = T)}
+run_one_comparison <- function(y0, control, test, out.dir, prefix, plot.title, fdr, lfc, fdr2, lfc2, tgt){
+    k <- sapply(strsplit(y0$genes$sample.groups, split = ','), function(v){sum(c(control,test) %in% v) > 0 }) > 0 # filter peaks present in either control or test group
+    if(sum(k) == 0){ return(NULL)}
     
+    out.prefix <- paste(out.dir, prefix, prefix, sep = '/')
+    lst <- run_da(
+        y0[k,], 
+        out.prefix, 
+        control.group = gsub('-', '_', control), 
+        test.group = gsub('-', '_', test), 
+        group = gsub('-', '_', y0$samples$sample_group), 
+        feature.length = 'length',
+        fdr = fdr, lfc = lfc, fdr2 = fdr2, lfc2 = lfc2,
+        target = tgt
+    )
+    
+    y <- lst$y
+    df <- lst$df
+    lst$plots <- list(
+        PCA = plot_pca(
+            y, 
+            out.prefix, 
+            color = y$samples$sample_group, 
+            sample.label = T, 
+            plot.title = "", 
+            var.genes = 500, 
+            feature.length = "length"),
+        MD = plot_MD(
+            df, out.prefix = out.prefix, 
+            plot.title = plot.title
+        ),
+        volcano = plot_volcano(
+            df, out.prefix = out.prefix, 
+            plot.title = plot.title
+        )
+    )
+    
+    
+    return(lst)
+    
+    
+}
+
+wrapper_one_conp <- function(ss, cmp, tgt, conp.bed, count.txts, fdr = 0.05, lfc = log2(1.5), fdr2 = 0.01, lfc2 = 1){
+    out.dir <- gsub('\\.bed$', '', basename(conp.bed))
+    if(!dir.exists(out.dir)){dir.create(out.dir, recursive = T)}
+
     ## generate count matrix ####
-    ssi <- ss %>%
-        filter(conp == cnp) 
-    tgt <- ssi$target[1]
-    cts <- generate_count_matrix(paste(in.dir, '07_consensus_peaks', cnp, sep = '/'), paste(in.dir, '07_consensus_peaks/featureCounts', sub('.bed$', '', cnp), paste(ssi$sample_id, 'fragmentCounts.txt', sep = '.'), sep = '/'))
+    cts <- generate_count_matrix(conp.bed, count.txts, ids = gsub('.*macs2_narrow_peaks.|.*macs2_broad_peaks.|.*seacr_peaks.|.fragmentCounts.txt', '', basename(count.txts)))
     
     ## create DGElist ####
+    ssi <- ss %>%
+        filter(id %in% colnames(cts)) %>% 
+        dplyr::select(id, target, sample_group, sample_replicate) %>% 
+        arrange(factor(id, levels = colnames(cts)[8:ncol(cts)]))
+    
     y0 <- count2dgelist(
         counts = cts, 
         out.dir = out.dir, 
-        feature.cols = 1:6, 
-        samples = ssi %>% 
-            dplyr::select(sample_group, sample_replicate, sample_id) %>% 
-            arrange(factor(sample_id, levels = colnames(cts)[7:ncol(cts)]))
+        feature.cols = 1:7, 
+        samples = ssi
     )
     
-    ## subset comparison table ####
-    icmp <- cmp %>% filter(target == tgt)
-    
     ## run DGE ####
-    run_one_comp <- function(control, test){
-        k <- grepl(paste(c(control, test), collapse = '|'), y0$genes$sample.groups) # filter peaks present in samples for comparison
-        if(sum(k) > 0){
-            out.prefix <- paste(out.dir, paste(test,control,sep = '_vs_'), paste(test,control,sep = '_vs_'), sep = '/')
-            lst <- run_da(
-                y0[k,], 
-                out.prefix, 
-                control.group = gsub('-', '_', control), 
-                test.group = gsub('-', '_', test), 
-                group = gsub('-', '_', y0$samples$sample_group), 
-                feature.length = 'Length',
-                fdr = fdr, lfc = lfc, fdr2 = fdr2, lfc2 = lfc2,
-                target = tgt
-            )
-            
-            y <- lst$y
-            df <- lst$df
-            lst$plots <- list(
-                PCA = plot_pca(
-                    y, 
-                    out.prefix, 
-                    color = y$samples$sample_group, 
-                    sample.label = T, 
-                    plot.title = "", 
-                    var.genes = 500, 
-                    feature.length = "Length"),
-                MD = plot_MD(
-                    df, out.prefix = out.prefix, 
-                    plot.title = paste0(tgt, ': ', test, " vs ", control, ' (control)')
-                ),
-                volcano = plot_volcano(
-                    df, out.prefix = out.prefix, 
-                    plot.title = paste0(tgt, ': ', test, " vs ", control, ' (control)')
-                )
-            )
-            
-            
-            return(lst)
-        }
-        
+    dp <- mapply(
+        run_one_comparison, 
+        MoreArgs = list(y0 = y0, out.dir = out.dir, fdr = 0.05, lfc = log2(1.5), fdr2 = 0.01, lfc2 = 1, tgt = tgt),
+        cmp$control, 
+        cmp$test, 
+        paste(cmp$test, cmp$control, sep = '_vs_'),
+        paste(cmp$test, cmp$control, sep = ' vs '),
+        SIMPLIFY = F)
+    names(dp) <- paste(cmp$test, cmp$control, sep = '_vs_')
+    
+    dp[sapply(dp, is.null)] <- NULL
+    if (length(dp) > 0){
+        return(dp)
+    }else{
+        return(NULL)
     }
     
-    dp <- mapply(run_one_comp, icmp$control, icmp$test, SIMPLIFY = F)
-    names(dp) <- paste(icmp$test, icmp$control, sep = '_vs_')
-    
-    return(dp)
 }
 
 
 ## read arguments ####
-args <- as.vector(commandArgs(T)) # ss, ssdp, cmp
-ss <- read.csv(args[1]) %>% 
-    filter(!grepl('IgG', target)) %>%
-    mutate(
-        sample_id = paste(group, replicate, sep = '_R')
-    ) %>% 
-    right_join(
-        read.csv(args[2]), by = 'sample_id'
-    ) 
-cmp <- read.csv(args[3])
-in.dir <- normalizePath(args[4])
-out.dir <- 'differential_peaks'
-if (!dir.exists(out.dir)){dir.create(out.dir, recursive = T)}
+args <- as.vector(commandArgs(T)) # ss, cmp, path/to/fragmentCounts.txt, path/to/conp.bed
+ss <- read.csv(args[1]) 
+if (grepl('dummy_file', args[2])){
+    stop (paste(args[2], "is a dummy file! Provide a valid comparison table in csv, txt, tsv or rds format!"))
+}else if (file.size(args[2]) == 0){
+    stop(paste( args[2], "is empty!"))
+}else if (grepl('.csv$', args[2])){
+    cmp <- read.csv(args[2])
+}else if (grepl('.rds$', args[2])){
+    cmp <- readRDS(args[2])
+}else if (grepl('.txt$|.tsv$', args[2])){
+    cmp <- read.delim(args[2])
+}else{
+    stop(paste(args[2], "should be .csv, .txt, .tsv or .rds!"))
+}
+tgt <- args[3]
+
+conp.bed.all <- list.files('conp/', full.names = T)
+count.txts.all <- list.files('counts/', full.names = T)
 
 ## detect differential peaks ####
-dp.list <- lapply(unique(ss$conp), wrapper_one_conp, ss=ss, cmp=cmp, in.dir = in.dir, out.dir = out.dir)
-names(dp.list) <- unique(ss$conp)
-saveRDS(dp.list, paste(out.dir, 'dp.rds', sep = '/'))
+dp.list <- list()
+for (conp.bed in conp.bed.all){
+    count.txts <- grep(gsub('.bed$', '', basename(conp.bed)), count.txts.all, value = T)
+    dp.list[[basename(conp.bed)]] <- wrapper_one_conp(ss, cmp, tgt, conp.bed, count.txts)
+    
+}
+dp[sapply(dp,is.null)] <- NULL
+if (length(dp) == 0){
+    stop (paste("No comparison was done. Check if", args[1], "and", args[2], "do not match!"))
+}
+saveRDS(dp.list, 'dp.rds')
 
 dp_sum <- bind_rows(lapply(dp.list, function(dp){
-    bind_rows(lapply(dp, function(x){x$summary}))
+    bind_rows(lapply(dp, function(x){if(!is.null(x)){x$summary}}))
 })) %>% 
     dplyr::relocate(target, output.folder, control.group, test.group, features.tested:FC.cutoff, control.samples:test.samples)
 dp_sum %>% 
-    write.table(paste(out.dir, 'DP_summary.txt', sep = '/'), sep = '\t', quote = F, row.names = F)
+    write.table('DP_summary.txt', sep = '\t', quote = F, row.names = F)

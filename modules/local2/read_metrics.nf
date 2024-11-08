@@ -9,17 +9,16 @@ process READ_METRICS {
         'biocontainers/mulled-v2-03bfeb32fe80910c231f630d4262b83677c8c0f4:f4bb19b68e66de27e4c64306f951d5ff11919931-0' }"
 
     input:
-    path (input)
-    path (multiqc_data, stageAs: "multiqc_data/*")
-    path (frag_lens, stageAs: "fragment_length/*")
+    path ("multiqc_data/*")
 
     output:
-    path( "*.{csv,rds}" ), emit: metrics
-
+    path( "*.csv" ), emit: csv
+    // read_metrics.csv
 
     script:
     """
-    read_metrics.r $input
+    read_metrics.r
 
     """
+    // input: multiqc_data/
 }

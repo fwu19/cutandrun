@@ -3,18 +3,20 @@ process CONSENSUS_PEAKS {
 
     label "process_single"
 
-    tag "Generate consensus peaks and collect metrics "
+    tag "Generate consensus peaks from $target"
 
     input:
-    path( replicated_peaks )
+    path (samplesheet)
+    tuple val (target), path ( "peaks/*" )
 
     output:
-    path ( "*.{rds,csv}" ), emit: metrics
-    path ( "*.bed" ), emit: peak
+    tuple val(target), path ( "*.csv" ), emit: csv
+    tuple val(target), path ( "*.rds" ), emit: rds
+    tuple val(target), path ( "*.bed" ), emit: bed
 
     script:
     """
-    consensus_peaks.r
+    consensus_peaks.r $samplesheet $target
 
     """
 
