@@ -12,12 +12,13 @@ process ANNOTATE_CONSENSUS_PEAKS {
 
     output:
     tuple path(conp), path ( "*.annotation.txt" ), emit: txt
-    path ( gtf ), emit: gtf
+    path ( gtf ), emit: gtf, optional: true
     path ( "*" )
 
     script:
+    def gtf = gtf.baseName != 'dummy_file.txt' ? "$gtf" : ''
     """
-    annotate_consensus_peaks.sh $genome $gtf $conp
+    annotate_consensus_peaks.sh $genome $conp $gtf
 
     """
 

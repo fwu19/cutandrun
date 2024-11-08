@@ -590,9 +590,10 @@ workflow CUTANDRUN {
         /*
         * Annotate consensus peaks
         */
+        ch_gtf_ann = params.local_assets ? file("${params.local_assets}/${params.genome}/genes.proteinCoding_lncRNA.gtf") : ch_dummy_file
         ANNOTATE_CONSENSUS_PEAKS(
             params.genome,
-            file("$projectDir/assets/local/${params.genome}/genes.proteinCoding_lncRNA.gtf", checkIfExists: true),
+            ch_gtf_ann,
             CONSENSUS_PEAKS.out.bed.collect{it[1]}.flatten()
         )
         //ANNOTATE_CONSENSUS_PEAKS.out.txt.view()
@@ -633,7 +634,7 @@ workflow CUTANDRUN {
             /*
             * Call differential peaks
             */
-            ch_comparison = params.comparison ? file ( params.comparison, checkIfExists: true ) : ch_dummy_file
+            ch_comparison = params.comparison ? file ( params.comparison, checkIfExists: true ) : Channel.empty()
             DIFFERENTIAL_PEAKS(
                 samplesheet,
                 ch_comparison,
