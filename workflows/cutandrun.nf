@@ -21,7 +21,7 @@ checkPathParamList = [
     params.bowtie2,
     params.fasta,
     params.gtf,
-    params.input
+    //params.input
 ]
 for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
 
@@ -34,7 +34,7 @@ for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true
 
 
 // Check mandatory parameters that cannot be checked in the groovy lib as we want a channel for them
-if (params.input) { ch_input = file(params.input) } else { exit 1, "Input samplesheet not specified!" }
+//if (params.input) { ch_input = file(params.input) } else { exit 1, "Input samplesheet not specified!" }
 
 ch_blacklist = Channel.empty()
 if (params.blacklist) {
@@ -154,6 +154,7 @@ include { INPUT_CHECK                   } from "../subworkflows/local2/input_che
 include { CALL_PEAKS                    } from '../subworkflows/local2/call_peaks'
 include { COMPUTE_GENOMECOVERAGE        } from "../subworkflows/local2/compute_genomecoverage"
 
+include { GET_FASTQ_PATHS               } from '../modules/local2/get_fastq_paths'
 include { MULTIQC                       } from '../modules/local2/multiqc'
 include { FRAGMENT_LENGTHS               } from '../modules/local2/fragment_lengths'
 include { READ_METRICS                  } from '../modules/local2/read_metrics'
@@ -195,6 +196,17 @@ workflow CUTANDRUN {
      * SUBWORKFLOW: Read in samplesheet, validate and stage input files
      */
     if(params.run_input_check) {
+        if ( params.input ){
+            ch_input = Channel.fromPath( params.input, checkIfExists: true )
+        }else if ( params.input_dir ){
+            GET_FASTQ_PATHS (
+                Channel.fromPath( params.input_dir, type: 'dir' )
+            )
+            ch_input = GET_FASTQ_PATHS.out.csv
+        }else {
+            exit ( 'Neither --input nor --input_dir is specified!' )
+        }
+
         ch_metadata = params.metadata ? file( params.metadata, checkIfExists: true ) : ch_dummy_file
         INPUT_CHECK (
             ch_input,
