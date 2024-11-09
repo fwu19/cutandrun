@@ -57,6 +57,7 @@ if (params.validate_params) {
 
 WorkflowMain.initialise(workflow, params, log, args)
 
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     NAMED WORKFLOW FOR PIPELINE
@@ -64,12 +65,25 @@ WorkflowMain.initialise(workflow, params, log, args)
 */
 
 include { CUTANDRUN } from './workflows/cutandrun'
+include { PROCESSING_CONTROLS } from './workflows/processing_controls'
 
-workflow NFCORE_CUTANDRUN {
-    /*
-     * WORKFLOW: Run main nf-core/cutandrun analysis pipeline
-     */
-    CUTANDRUN ()
+workflow_list = [ 'cutandrun', 'processing_controls' ]
+workflow RUN_CUTANDRUN {
+    if ( !params.workflow ){
+        exit 1, "Specify a variant workflow option. Valid options: ${workflow_list.join(', ')}"
+    }else if ( params.workflow == 'cutandrun' ){
+        /*
+        * WORKFLOW: Run main nf-core/cutandrun analysis pipeline
+         */
+        CUTANDRUN ()
+    } else if ( params.workflow == 'processing_controls' ){
+        /*
+        * WORKFLOW: Run workflow to analyze processing controls only
+        */
+        PROCESSING_CONTROLS()
+    } else {
+        exit 1, "Invalid variant workflow option: ${params.workflow}. Valid options: ${workflow_list.join(', ')}"
+    }
 }
 
 /*
@@ -83,7 +97,7 @@ workflow NFCORE_CUTANDRUN {
  * See: https://github.com/nf-core/rnaseq/issues/619
  */
 workflow {
-    NFCORE_CUTANDRUN ()
+    RUN_CUTANDRUN ()
 }
 
 /*
