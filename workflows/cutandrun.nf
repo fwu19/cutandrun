@@ -54,6 +54,7 @@ if (anno_readme && file(anno_readme).exists()) {
 
 // Stage dummy file to be used as an optional input where required
 ch_dummy_file = file("$projectDir/assets/dummy_file.txt", checkIfExists: true)
+ch_dummy_csv = file("$projectDir/assets/local/dummy_file.csv", checkIfExists: true)
 
 // Stage awk files for parsing log files
 ch_bt2_to_csv_awk     = file("$projectDir/bin/bt2_report_to_csv.awk"    , checkIfExists: true)
@@ -196,18 +197,21 @@ workflow CUTANDRUN {
      * SUBWORKFLOW: Read in samplesheet, validate and stage input files
      */
     if(params.run_input_check) {
-        if ( params.input_dir ){
+        
+        if ( params.input_dir =~ 'dummy' ){
+            if ( params.input =~ 'dummy' ){
+                exit 1, 'Neither --input nor --input_dir is specified!'
+            }else {
+                ch_input = Channel.fromPath( params.input, checkIfExists: true )
+            }
+        }else {
             GET_FASTQ_PATHS (
                 params.input_dir
             )
             ch_input = GET_FASTQ_PATHS.out.csv
-        } else if ( params.input =~ 'dummy_input.csv' ){
-            exit ( 'Neither --input nor --input_dir is specified!' )
-        } else {
-            ch_input = Channel.fromPath( params.input, checkIfExists: true )
         }
 
-        ch_metadata = params.metadata ? file( params.metadata, checkIfExists: true ) : ch_dummy_file
+        ch_metadata = params.metadata ? file( params.metadata, checkIfExists: true ) : ch_dummy_csv
         INPUT_CHECK (
             ch_input,
             ch_metadata
@@ -632,7 +636,7 @@ workflow CUTANDRUN {
         ANNOTATE_CONSENSUS_PEAKS(
             params.genome,
             ch_gtf_ann,
-            ch_conp.collect{it[1]}.flatten()
+            ch_con_bed.collect{it[1]}.flatten()
         )
         ch_conp_ann = ANNOTATE_CONSENSUS_PEAKS.out.txt
         // ch_conp_ann.view()
