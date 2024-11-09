@@ -484,6 +484,24 @@ workflow CUTANDRUN {
 
     }
 
+    /*
+    * Run MultiQC
+    */
+    multiqc_data = Channel.empty()
+    if (params.run_multiqc){
+
+        MULTIQC(
+            ch_multiqc_custom_config.ifEmpty([]),
+            ch_bowtie2_log.collect{it[1]}.ifEmpty([]),
+            ch_bowtie2_spikein_log.collect{it[1]}.ifEmpty([]),
+            ch_samtools_stats.collect{it[1]}.ifEmpty([]),
+            ch_samtools_flagstat.collect{it[1]}.ifEmpty([]),
+            ch_samtools_idxstats.collect{it[1]}.ifEmpty([]),
+            ch_markduplicates_metrics.collect{it[1]}.ifEmpty([])
+
+        )
+
+    }
 
     /*
      * SUBWORKFLOW: Call peaks from individual samples
@@ -505,25 +523,9 @@ workflow CUTANDRUN {
         // [ meta, [peaks] ]
     }
 
-    multiqc_data = Channel.empty()
     ch_read_metrics = Channel.empty()
     ch_frag_lens = Channel.empty()
     if (params.run_local_read_qc){
-
-        /*
-        * Run MultiQC
-        */
-
-        MULTIQC(
-            ch_multiqc_custom_config.ifEmpty([]),
-            ch_bowtie2_log.collect{it[1]}.ifEmpty([]),
-            ch_bowtie2_spikein_log.collect{it[1]}.ifEmpty([]),
-            ch_samtools_stats.collect{it[1]}.ifEmpty([]),
-            ch_samtools_flagstat.collect{it[1]}.ifEmpty([]),
-            ch_samtools_idxstats.collect{it[1]}.ifEmpty([]),
-            ch_markduplicates_metrics.collect{it[1]}.ifEmpty([])
-
-        )
 
         /*
         * Collect reads metrics from MultiQC data
