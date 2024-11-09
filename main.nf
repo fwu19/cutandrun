@@ -68,7 +68,7 @@ include { CUTANDRUN } from './workflows/cutandrun'
 include { PROCESSING_CONTROLS } from './workflows/processing_controls'
 
 workflow_list = [ 'cutandrun', 'processing_controls' ]
-workflow RUN_CUTANDRUN {
+workflow NFCORE_CUTANDRUN {
     if ( !params.workflow ){
         exit 1, "Specify a variant workflow option. Valid options: ${workflow_list.join(', ')}"
     }else if ( params.workflow == 'cutandrun' ){
@@ -97,7 +97,7 @@ workflow RUN_CUTANDRUN {
  * See: https://github.com/nf-core/rnaseq/issues/619
  */
 workflow {
-    RUN_CUTANDRUN ()
+    NFCORE_CUTANDRUN ()
 }
 
 /*
