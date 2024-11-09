@@ -6,9 +6,9 @@ options(stringsAsFactors = F)
 library(dplyr)
 
 ## functions ####
-get_fastqs <- function(fq_dir){
+get_fastqs <- function(fq_dirs){
     ## get paths to fastq files
-    fqs <- grep('undetermined', list.files(fq_dir, recursive = T, full.names = T, pattern = "fastq.gz"), invert = T, value = T, ignore.case = T)
+    fqs <- grep('undetermined', list.files(fq_dirs, recursive = T, full.names = T, pattern = "fastq.gz"), invert = T, value = T, ignore.case = T)
     fqs1 <- sort(grep("_S[0-9]+(_L[0-9]+)?_R1_", fqs, value = T))
     fqs2 <- sort(grep("_S[0-9]+(_L[0-9]+)?_R2_", fqs, value = T))
     
@@ -50,7 +50,7 @@ get_fastqs <- function(fq_dir){
 
 ## read arguments ####
 args <- as.vector(commandArgs(T))
-input_dirs <- list.dirs('./', recursive = F)
+input_dirs <- args
 
 ss <- bind_rows(lapply(
     input_dirs, get_fastqs

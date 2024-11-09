@@ -6,12 +6,12 @@ options(stringsAsFactors = F)
 library(dplyr)
 
 ## functions ####
-add_metadata <- function(ss, meta.csv=NULL){
+add_metadata <- function(ss, meta_csv=NULL){
     ## update with metadata if provided
     # metadata contains a required columns id and optional columns: sample_group, sample_replicate, target, control, call_peak, call_rep_peak, call_con_peak
     
-    if (file_test('-f', meta.csv) & grepl('.csv$', meta.csv)){
-        meta <- read.csv(meta.csv)
+    if (file_test('-f', meta_csv) & grepl('.csv$', meta_csv)){
+        meta <- read.csv(meta_csv)
         ss <- ss %>% 
             inner_join(
                 meta, by = 'id', suffix = c(".x", "")
@@ -25,15 +25,15 @@ add_metadata <- function(ss, meta.csv=NULL){
 
 ## read arguments ####
 args <- as.vector(commandArgs(T))
-input <- args[1]
+in_csv <- args[1]
 out_csv <- args[2]
 use_control <- as.logical(args[3]) # not used
-meta.csv <- ifelse(length(args) > 3, args[4], NULL)
+meta_csv <- ifelse(length(args) > 3, args[4], NULL)
 
 
 ## generate sample sheet ####
-ss <- read.csv(input)
-ss <- add_metadata(ss, meta.csv)
+ss <- read.csv(in_csv)
+ss <- add_metadata(ss, meta_csv)
 
 controls <- unique(ss$control)
 ss <- ss %>% 

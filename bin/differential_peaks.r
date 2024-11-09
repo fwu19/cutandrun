@@ -492,7 +492,7 @@ wrapper_one_conp <- function(ss, cmp, tgt, conp.bed, count.txts, fdr = 0.05, lfc
 args <- as.vector(commandArgs(T)) # ss, cmp, path/to/fragmentCounts.txt, path/to/conp.bed
 ss <- read.csv(args[1]) 
 if (grepl('dummy_file', args[2])){
-    stop (paste(args[2], "is a dummy file! Provide a valid comparison table in csv, txt, tsv or rds format!"))
+    stop (paste(args[2], "is a dummy file! Provide --comparison path/to/comparison_file (a comparison table in csv, txt, tsv or rds format)!"))
 }else if (file.size(args[2]) == 0){
     stop(paste( args[2], "is empty!"))
 }else if (grepl('.csv$', args[2])){

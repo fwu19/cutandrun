@@ -67,7 +67,7 @@ ch_dt_frag_to_csv_awk = file("$projectDir/bin/dt_frag_report_to_csv.awk", checkI
 
 // Load up and check multiqc base config and custom configs
 ch_multiqc_config        = file("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
-ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config) : Channel.empty()
+ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config) : Channel.fromPath("$projectDir/assets/local/multiqc_config.yml")
 
 // Header files for MultiQC
 ch_frag_len_header_multiqc              = file("$projectDir/assets/multiqc/frag_len_header.txt", checkIfExists: true)
@@ -196,15 +196,15 @@ workflow CUTANDRUN {
      * SUBWORKFLOW: Read in samplesheet, validate and stage input files
      */
     if(params.run_input_check) {
-        if ( params.input ){
-            ch_input = Channel.fromPath( params.input, checkIfExists: true )
-        }else if ( params.input_dir ){
+        if ( params.input_dir ){
             GET_FASTQ_PATHS (
-                Channel.fromPath( params.input_dir, type: 'dir' )
+                params.input_dir
             )
             ch_input = GET_FASTQ_PATHS.out.csv
-        }else {
+        } else if ( params.input =~ 'dummy_input.csv' ){
             exit ( 'Neither --input nor --input_dir is specified!' )
+        } else {
+            ch_input = Channel.fromPath( params.input, checkIfExists: true )
         }
 
         ch_metadata = params.metadata ? file( params.metadata, checkIfExists: true ) : ch_dummy_file
@@ -466,7 +466,6 @@ workflow CUTANDRUN {
     */
     ch_bedgraph_markdup     = Channel.empty()
     ch_bedgraph_dedup       = Channel.empty()
-
     if(params.run_alignment && params.run_read_filter) {
         COMPUTE_GENOMECOVERAGE(
             ch_samtools_bam_markdup,
@@ -497,20 +496,24 @@ workflow CUTANDRUN {
             ch_bedgraph_dedup,
             ch_samtools_bam_markdup
         )
-        //CALL_PEAKS.out.peaks_all.view()
+        ch_peaks_all = CALL_PEAKS.out.peaks_all
+        // ch_peaks_all.view()
         // [ meta, [peaks] ]
 
-        //CALL_PEAKS.out.peaks_final.view()
+        ch_peaks_final = CALL_PEAKS.out.peaks_final
+        // ch_peaks_final.view()
         // [ meta, [peaks] ]
     }
 
-
+    multiqc_data = Channel.empty()
+    ch_read_metrics = Channel.empty()
+    ch_frag_lens = Channel.empty()
     if (params.run_local_read_qc){
 
         /*
         * Run MultiQC
         */
-        multiqc_data = Channel.empty()
+
         MULTIQC(
             ch_multiqc_custom_config.ifEmpty([]),
             ch_bowtie2_log.collect{it[1]}.ifEmpty([]),
@@ -525,66 +528,84 @@ workflow CUTANDRUN {
         /*
         * Collect reads metrics from MultiQC data
         */
+
         READ_METRICS(
             MULTIQC.out.data
         )
-        //READ_METRICS.out.csv.view()
+        ch_read_metrics = READ_METRICS.out.csv
+        //ch_read_metrics.view()
         // path(csv)
 
         /*
         * Compute fragment length
         */
+
         FRAGMENT_LENGTHS(
             ch_samtools_bam
         )
-        //FRAGMENT_LENGTHS.out.txt.view()
+        ch_frag_lens = FRAGMENT_LENGTHS.out.txt
+        // ch_frag_lens.view()
         // [ meta, path(txt) ]
     }
 
+    ch_rip = Channel.empty()
+    ch_orig_csv = Channel.empty()
+    ch_orig_widths = Channel.empty()
+    ch_rep_bed = Channel.empty()
+    ch_rep_csv = Channel.empty()
+    ch_con_bed = Channel.empty()
+    ch_con_csv = Channel.empty()
+    ch_conp_ann = Channel.empty()
     if (params.run_local_peak_qc){
         /*
         * Compute reads in peak
         */
-        CALL_PEAKS.out.peaks_final
+        ch_peaks_final
             .join(ch_samtools_bam)
             .set{ch_peak_bam}
 
         READS_IN_PEAK(
             ch_peak_bam
         )
-        //READS_IN_PEAK.out.csv.collect{it[1]}.flatten().view()
+        ch_rip = READS_IN_PEAK.out.csv.collect{it[1]}
+        // ch_rip.view()
 
 
         /*
         * Collect metrics for original peaks
         */
         ORIGINAL_PEAKS(
-            CALL_PEAKS.out.peaks_all
+            ch_peaks_all
         )
-        //ORIGINAL_PEAKS.out.csv.view()
+        ch_orig_csv = ORIGINAL_PEAKS.out.csv
+        // ch_orig_peaks.view()
         // path(peak_metrics)
 
         /*
         * Collect peak widths for final peaks
         */
+
         ORIGINAL_PEAK_WIDTHS(
-            CALL_PEAKS.out.peaks_final
+            ch_peaks_final
         )
-        //ORIGINAL_PEAK_WIDTHS.out.csv.view()
+        ch_orig_widths = ORIGINAL_PEAK_WIDTHS.out.csv
+        // ch_orig_widths.view()
         // path(peak_widths)
 
         /*
         * Generate replicated peaks and collect metrics
         */
         REPLICATED_PEAKS(
-            CALL_PEAKS.out.peaks_final
+            ch_peaks_final
             .filter { it[0].call_rep_peak == true }
             .map { it -> [ [it[0].group, it[0].target], it[1] ]}
             .groupTuple (by: 0)
             .map { it -> [ it[0][0], it[0][1], it[1].flatten().collect() ] },
             params.min_replicates
         )
-        //REPLICATED_PEAKS.out.bed
+        ch_rep_bed = REPLICATED_PEAKS.out.bed
+        ch_rep_csv = REPLICATED_PEAKS.out.csv
+        // ch_rep_bed.view()
         // [ target, [peaks] ]
 
         /*
@@ -592,49 +613,57 @@ workflow CUTANDRUN {
         */
         CONSENSUS_PEAKS(
             samplesheet,
-            REPLICATED_PEAKS.out.bed
+            ch_rep_bed
             .groupTuple ( by: 0 )
             .map { it -> [ it[0], it[1].flatten().collect() ] }
         )
-        //CONSENSUS_PEAKS.out.bed.view()
+        ch_con_bed = CONSENSUS_PEAKS.out.bed
+        ch_con_csv = CONSENSUS_PEAKS.out.csv
+        // ch_conp_bed.view()
         // [ target, path(conp) ]
 
         /*
         * Annotate consensus peaks
         */
         ch_gtf_ann = params.local_assets ? file("${params.local_assets}/${params.genome}/genes.proteinCoding_lncRNA.gtf") : ch_dummy_file
+
         ANNOTATE_CONSENSUS_PEAKS(
             params.genome,
             ch_gtf_ann,
-            CONSENSUS_PEAKS.out.bed.collect{it[1]}.flatten()
+            ch_conp.collect{it[1]}.flatten()
         )
-        //ANNOTATE_CONSENSUS_PEAKS.out.txt.view()
+        ch_conp_ann = ANNOTATE_CONSENSUS_PEAKS.out.txt
+        // ch_conp_ann.view()
 
     }
 
+    ch_conp_reads = Channel.empty()
+    ch_dp = Channel.empty()
     if (params.run_local_dp){
             /*
             * Count reads in consensus peaks
             */
             // ch_samtools_bam.view()
-            CONSENSUS_PEAKS.out.bed
+            ch_con_peaks
                 .cross (
                     ch_samtools_bam
                         .filter { it[0].target != "IgG" }
                         .map { it -> [ it[0].target, it ] }
                 )
-                .map { it -> [ it[1][1][0], it[1][1][1], it[0][1] ]}
+                .map { it -> [ it[1][1][0], it[1][1][1], it[0][1] ] }
                 .set { ch_bam_conp }
             //ch_bam_conp.view()
             // [ meta, bam, [conp] ]
 
+
             READS_IN_CONSENSUS_PEAKS(
                 ch_bam_conp
             )
-            //READS_IN_CONSENSUS_PEAKS.out.count.view()
+            ch_conp_reads = READS_IN_CONSENSUS_PEAKS.out.count
+            // ch_conp_reads.view()
             // [ target, [path/to/fragmentCounts.txt] ]
 
-            READS_IN_CONSENSUS_PEAKS.out.count
+            ch_conp_reads
                 .groupTuple( by: 0 )
                 .map { it -> [ it[0], it[1].flatten().collect() ]}
                 .cross ( CONSENSUS_PEAKS.out.bed )
@@ -646,13 +675,16 @@ workflow CUTANDRUN {
             /*
             * Call differential peaks
             */
-            ch_comparison = params.comparison ? file ( params.comparison, checkIfExists: true ) : Channel.empty()
+            ch_comparison = params.comparison ? file ( params.comparison, checkIfExists: true ) : ch_dummy_file
+
             DIFFERENTIAL_PEAKS(
                 samplesheet,
                 ch_comparison,
                 ch_tgt_reads_conp
             )
-            //DIFFERENTIAL_PEAKS.out.data.view()
+            ch_dp = DIFFERENTIAL_PEAKS.out.data
+            //ch_dp.view()
+            // [ path(*.{rds,csv}) ]
 
     }
 
@@ -662,29 +694,19 @@ workflow CUTANDRUN {
             */
             GENERATE_REPORT(
                 samplesheet,
-                READ_METRICS.out.csv,
-                FRAGMENT_LENGTHS.out.txt.collect{it[1]}.ifEmpty([]),
-                ORIGINAL_PEAKS.out.csv.collect{it[1]}.ifEmpty([]),
-                ORIGINAL_PEAK_WIDTHS.out.csv.collect{it[1]}.ifEmpty([]),
-                READS_IN_PEAK.out.csv.collect{it[1]}.ifEmpty([]),
-                REPLICATED_PEAKS.out.csv.collect{it[1]}.ifEmpty([]),
-                CONSENSUS_PEAKS.out.csv.collect{it[1]}.ifEmpty([]),
-                CONSENSUS_PEAKS.out.bed.collect{it[1]}.flatten().collect().ifEmpty([]),
-                ANNOTATE_CONSENSUS_PEAKS.out.txt.collect{it[1]}.ifEmpty([]),
-                DIFFERENTIAL_PEAKS.out.data.flatten().collect().ifEmpty([]),
+                ch_read_metrics.ifEmpty([]),
+                ch_frag_lens.ifEmpty([]),
+                ch_orig_csv.collect{it[1]}.ifEmpty([]),
+                ch_orig_widths.collect{it[1]}.ifEmpty([]),
+                ch_rip.collect{it[1]}.ifEmpty([]),
+                ch_rep_csv.collect{it[1]}.ifEmpty([]),
+                ch_con_csv.collect{it[1]}.ifEmpty([]),
+                ch_con_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
+                ch_conp_ann.collect{it[1]}.ifEmpty([]),
+                ch_dp.flatten().collect().ifEmpty([]),
                 file("$projectDir/assets/local/report.Rmd", checkIfExists: true)
             )
 
-            /*
-            * generate html report
-
-            GENERATE_REPORT(
-                read_metrics,
-                ORIGINAL_PEAK_METRICS.out.data,
-                REPLICATED_PEAKS.out.data,
-                CONSENSUS_PEAKS.out.data
-            )
-            */
 
     }
 
