@@ -5,6 +5,8 @@ library(dplyr)
 
 args <- commandArgs(T)
 
+in_files <- file.path('multiqc_data', c('multiqc_bowtie2.txt', 'multiqc_bowtie2_1.txt', 'multiqc_picard_dups.txt'))
+
 ## metadata ####
 bt2_target <- read.delim('multiqc_data/multiqc_bowtie2.txt') %>% 
   mutate(
@@ -19,7 +21,7 @@ bt2_spikein <- read.delim('multiqc_data/multiqc_bowtie2_1.txt') %>%
     overall_alignment_rate = overall_alignment_rate/100 
   )
 
-bt2 <- bt2_target %>% 
+meta <- bt2_target %>% 
   dplyr::select(-Sample) %>% 
   left_join(
       bt2_spikein %>% 
@@ -27,19 +29,22 @@ bt2 <- bt2_target %>%
     by = 'id', suffix = c('_target', '_spikein')
   ) %>% 
   relocate(id)
-colnames(bt2)[2:ncol(bt2)] <- paste('bt2', colnames(bt2), sep = '_')[2:ncol(bt2)]
+colnames(meta)[2:ncol(meta)] <- paste('bt2', colnames(meta), sep = '_')[2:ncol(meta)]
 
-dedup <- read.delim('multiqc_data/multiqc_picard_dups.txt') %>% 
-  mutate(id = Sample) %>% 
-  dplyr::select(id,READ_PAIR_DUPLICATES, PERCENT_DUPLICATION, ESTIMATED_LIBRARY_SIZE) %>% 
-  dplyr::rename_with(tolower) 
-colnames(dedup)[2:ncol(dedup)] <- paste('dedup', colnames(dedup), sep = '_')[2:ncol(dedup)]
+if (file.exists('multiqc_data/multiqc_picard_dups.txt')){
+  dedup <- read.delim('multiqc_data/multiqc_picard_dups.txt') %>% 
+    mutate(id = Sample) %>% 
+    dplyr::select(id,READ_PAIR_DUPLICATES, PERCENT_DUPLICATION, ESTIMATED_LIBRARY_SIZE) %>% 
+    dplyr::rename_with(tolower) 
+  colnames(dedup)[2:ncol(dedup)] <- paste('dedup', colnames(dedup), sep = '_')[2:ncol(dedup)]
 
-meta <- bt2 %>% 
-  left_join(
-    dedup,
-    by = c('id')
-  ) 
+  meta <- meta %>% 
+    left_join(
+      dedup,
+      by = c('id')
+    ) 
+}
+
 meta %>% 
   write.table('read_metrics.csv', sep = ',', quote = F, row.names = F)
 

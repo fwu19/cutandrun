@@ -197,7 +197,7 @@ workflow CUTANDRUN {
      * SUBWORKFLOW: Read in samplesheet, validate and stage input files
      */
     if(params.run_input_check) {
-        
+
         if ( params.input_dir =~ 'dummy' ){
             if ( params.input =~ 'dummy' ){
                 exit 1, 'Neither --input nor --input_dir is specified!'
@@ -554,9 +554,9 @@ workflow CUTANDRUN {
         // [ meta, path(txt) ]
     }
 
-    ch_rip = Channel.empty()
     ch_orig_csv = Channel.empty()
     ch_orig_widths = Channel.empty()
+    ch_rip = Channel.empty()
     ch_rep_bed = Channel.empty()
     ch_rep_csv = Channel.empty()
     ch_con_bed = Channel.empty()
@@ -701,7 +701,7 @@ workflow CUTANDRUN {
             GENERATE_REPORT(
                 samplesheet,
                 ch_read_metrics.ifEmpty([]),
-                ch_frag_lens.ifEmpty([]),
+                ch_frag_lens.collect{it[1]}.ifEmpty([]),
                 ch_orig_csv.collect{it[1]}.ifEmpty([]),
                 ch_orig_widths.collect{it[1]}.ifEmpty([]),
                 ch_rip.collect{it[1]}.ifEmpty([]),

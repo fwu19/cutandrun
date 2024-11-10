@@ -48,7 +48,7 @@ ntargets <- length(targets)
 ngroups <- length(unique(meta$sample_group))
 
 fig.read.width <- 12
-fig.read.height <- max(ngroups*1.2 +2, 6)
+fig.read.height <- max(ngroups*1.2 +2, 8)
 
 fig.peak.width <- 12
 fig.peak.height <- max(ngroups*1.2 +2, 8)
@@ -119,8 +119,8 @@ $$\\[0.5in]$$
 **G. Fragment length** - fragment length estimated based on paired-end sequencing.  
 
 ```{r read_plots, results='asis', fig.width=fig.read.width, fig.height=fig.read.height}
-qc_read <- instersect(names(figs), c("seq_depth", "aligned_reads", "aligned_pct", "aligned_reads_spikein", "dup_rate", "est_lib_size", "frag_lens_dens"))
-if (length(qc_read)){
+qc_read <- intersect(names(figs), c("seq_depth", "aligned_reads", "aligned_pct", "aligned_reads_spikein", "dup_rate", "est_lib_size", "frag_lens_dens"))
+if (length(qc_read) == 0){
   cat('No plots were found!')
   quit()
 }
@@ -168,6 +168,7 @@ cat("\n\n")
 
 ### Metrics
 ```{r}
+cols2format <- intersect(c('bt2_overall_alignment_rate_target', 'bt2_overall_alignment_rate_spikein', 'dedup_percent_duplication'), colnames(meta))
 meta %>% 
   mutate(
     sample_id = group,
@@ -175,7 +176,6 @@ meta %>%
     Ecoli_alignment_rate = bt2_total_aligned_spikein/bt2_total_reads_spikein,
   ) %>% 
   arrange(sample_group, target, sample_replicate) %>% 
-  dplyr::select(sample_id, sample_group, target, sample_replicate, bt2_total_reads_target, bt2_total_aligned_target, bt2_overall_alignment_rate_target, bt2_total_aligned_spikein, bt2_overall_alignment_rate_spikein, dedup_percent_duplication, dedup_estimated_library_size) %>% 
   unique.data.frame() %>% 
   DT::datatable(
   class = 'cell-border stripe', 
@@ -188,7 +188,7 @@ meta %>%
     dom = 'Bfrtip',
     buttons = c('csv')
   )) %>% 
-  DT::formatRound(columns=c('bt2_overall_alignment_rate_target', 'bt2_overall_alignment_rate_spikein', 'dedup_percent_duplication'), digits=4)
+  DT::formatRound(columns=cols2format, digits=4)
 
 ```
 
@@ -244,6 +244,7 @@ $$\\[0.1in]$$
 
 
 ```{r}
+if ('nreps' %in% names(dat)){
 dat$nreps  %>% 
   relocate(target, sample_group, group, caller, nrep, ids) %>% 
   DT::datatable(
@@ -257,6 +258,7 @@ dat$nreps  %>%
     dom = 'Bfrtip',
     buttons = c('csv')
   ))
+}
 ```
 
 
@@ -269,6 +271,7 @@ $$\\[0.1in]$$
 #### Peak count
 
 ```{r conp_count}
+if ('nconps' %in% names(dat)){
 data.table::rbindlist(lapply(
   split(dat$nconps, dat$nconps$target),
   function(x){
@@ -283,7 +286,7 @@ data.table::rbindlist(lapply(
   kable %>%
   kable_styling("striped", full_width = F) %>%
   scroll_box(width = "700px", height = "200px")
-
+}
 ```
 
 #### Genomic distribution
