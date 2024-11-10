@@ -33,8 +33,22 @@ meta_csv <- ifelse(length(args) > 3, args[4], NULL)
 
 ## generate sample sheet ####
 ss <- read.csv(in_csv)
+
+## check single end fastq
+if (!'id' %in% colnames(ss)){
+    stop ( 'Missing column id!' )
+}else if ( ! 'fastq_1' %in% colnames(ss)){
+    stop ( 'Missing column fastq_1!' )
+}else if ( ! 'fastq_2' %in% colnames(ss)){
+    ss$fastq_2 <- ''
+}
+ss$fastq_2 <- ifelse(is.na(ss$fastq_2), "", ss$fastq_2)
+ss$single_end <- ifelse(ss$fastq_2 == "", 'true', 'false')
+
+## add metadata if available
 ss <- add_metadata(ss, meta_csv)
 
+## identify controls
 controls <- unique(ss$control)
 ss <- ss %>% 
     mutate(
@@ -48,7 +62,8 @@ ss <- ss %>%
         call_con_peak = ifelse(is_control == 'true', 'false', call_rep_peak)
     ) %>%
     dplyr::relocate(id, group, replicate, single_end, is_control, control_group, control, fastq_1, fastq_2, target, sample_group, sample_replicate, call_peak, call_rep_peak, call_con_peak)
-    
+ 
+## write sample sheet ####
 ss %>% 
     write.table(out_csv, sep = ',', quote = F, row.names = F)
 
