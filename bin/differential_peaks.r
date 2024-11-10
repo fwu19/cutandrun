@@ -522,5 +522,5 @@ dp.list[sapply(dp.list,is.null)] <- NULL
 if (length(dp.list) == 0){
     stop (paste("No comparison was done. Check if", args[1], "and", args[2], "do not match!"))
 }
-saveRDS(dp.list, 'dp.rds')
+saveRDS(dp.list, paste(tgt, 'dp.rds', sep = '.'))
 

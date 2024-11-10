@@ -21,7 +21,8 @@ input.dirs <- c(
   'replicated_peaks',
   'consensus_peaks',
   'consensus_beds',
-  'consensus_annotation'
+  'consensus_annotation',
+  'differential_peaks'
 )
 
 dat <- list()
@@ -52,6 +53,16 @@ if (file.exists('read_metrics.csv')){
     funcs[[qc]] <- function(df, tgt, var.x = 'bt2_total_reads_target', var.y = 'sample_group', xlab = 'Total reads (in million)', ylab = '', color = 'Replicate', plot.title = 'Sequenced reads'){
       require(ggplot2)
       
+      
+      if (nrow(df) == 0){ 
+        return(
+          ggplot(data.frame(x=0,y=0))+
+            geom_blank()+
+            theme_minimal()
+        ) 
+      }
+      
+      
       as.data.frame(df) %>% 
         mutate(sample_replicate = ifelse(is.na(sample_replicate), 1, sample_replicate)) %>% 
         mutate(x = df[,var.x]/1e6, y = df[,var.y], color = factor(sample_replicate)) %>% 
@@ -79,6 +90,15 @@ if (file.exists('read_metrics.csv')){
     
     funcs[[qc]] <- function(df, tgt, var.x = 'bt2_total_aligned_target', var.y = 'sample_group', xlab = 'Total aligned reads (in million) to the target genome', ylab = '', color = 'Replicate', plot.title = 'Reads aligned to target genome'){
       require(ggplot2)
+      
+      if (nrow(df) == 0){ 
+        return(
+          ggplot(data.frame(x=0,y=0))+
+            geom_blank()+
+            theme_minimal()
+        ) 
+      }
+      
       
       as.data.frame(df) %>% 
         mutate(sample_replicate = ifelse(is.na(sample_replicate), 1, sample_replicate)) %>% 
@@ -108,6 +128,15 @@ if (file.exists('read_metrics.csv')){
     qc <- 'aligned_pct' 
     funcs[[qc]] <- function(df, tgt, var.x = 'bt2_overall_alignment_rate_target', var.y = 'sample_group', xlab = 'Fraction of reads aligned to the target genome', ylab = '', color = 'Replicate', plot.title = 'Alignment rate to target genome'){
       require(ggplot2)
+      
+      if (nrow(df) == 0){ 
+        return(
+          ggplot(data.frame(x=0,y=0))+
+            geom_blank()+
+            theme_minimal()
+        ) 
+      }
+      
       
       as.data.frame(df) %>% 
         mutate(sample_replicate = ifelse(is.na(sample_replicate), 1, sample_replicate)) %>% 
@@ -139,6 +168,15 @@ if (file.exists('read_metrics.csv')){
     funcs[[qc]] <- function(df, tgt, var.x = 'bt2_overall_alignment_rate_spikein', var.y = 'sample_group', xlab = 'Total aligned reads (in thousand) to the spike-in genome', ylab = '', color = 'Replicate', plot.title = 'Reads aligned to spike-in genome'){
       require(ggplot2)
       
+      if (nrow(df) == 0){ 
+        return(
+          ggplot(data.frame(x=0,y=0))+
+            geom_blank()+
+            theme_minimal()
+        ) 
+      }
+      
+      
       as.data.frame(df) %>% 
         mutate(sample_replicate = ifelse(is.na(sample_replicate), 1, sample_replicate)) %>% 
         mutate(x = df[,var.x]/1e3, y = df[,var.y], color = factor(sample_replicate)) %>% 
@@ -169,6 +207,15 @@ if (file.exists('read_metrics.csv')){
     funcs[[qc]] <- function(df, tgt, var.x = 'dedup_percent_duplication', var.y = 'sample_group', xlab = 'Duplication Rate', ylab = '', color = 'Replicate', plot.title = 'Duplication rate'){
       require(ggplot2)
       
+      if (nrow(df) == 0){ 
+        return(
+          ggplot(data.frame(x=0,y=0))+
+            geom_blank()+
+            theme_minimal()
+        ) 
+      }
+      
+      
       as.data.frame(df) %>% 
         mutate(sample_replicate = ifelse(is.na(sample_replicate), 1, sample_replicate)) %>% 
         mutate(x = df[,var.x], y = df[,var.y], color = factor(sample_replicate)) %>% 
@@ -197,6 +244,15 @@ if (file.exists('read_metrics.csv')){
     qc <- 'est_lib_size' 
     funcs[[qc]] <- function(df, tgt, var.x = 'dedup_estimated_library_size', var.y = 'sample_group', xlab = 'Esitmated library size (in million)', ylab = '', color = 'Replicate', plot.title = 'Estimated library size'){
       require(ggplot2)
+      
+      if (nrow(df) == 0){ 
+        return(
+          ggplot(data.frame(x=0,y=0))+
+            geom_blank()+
+            theme_minimal()
+        ) 
+      }
+      
       
       as.data.frame(df) %>% 
         mutate(sample_replicate = ifelse(is.na(sample_replicate), 1, sample_replicate)) %>% 
@@ -244,6 +300,15 @@ if (dir.exists('fragment_lengths')){
   funcs[['frag_lens_dens']] <- function(df, tgt, var.x = 'length', var.y = 'count', var.group = 'id', facet.row = 'sample_group', xlab = 'Fragment length (bp)', ylab = 'Occurrences', color = 'Replicate', plot.title = 'Fragment length'){
     require(ggplot2)
     
+    if (nrow(df) == 0){ 
+      return(
+        ggplot(data.frame(x=0,y=0))+
+          geom_blank()+
+          theme_minimal()
+      ) 
+    }
+    
+    
     df <- as.data.frame(df)
     p <- df %>%
       mutate(x = df[,var.x], y = df[,var.y], group = df[,var.group], color = factor(sample_replicate), facet.row = df[,facet.row]) %>%
@@ -282,7 +347,16 @@ if (dir.exists('fragment_lengths')){
 if (dir.exists('original_peaks')){
   peak.metrics <- list.files('original_peaks', full.names = T, pattern = 'original_peaks')
   if (length(peak.metrics) > 0){
-    dat$npeaks <- bind_rows(lapply(peak.metrics, read.csv)) %>% 
+    dat$npeaks <- bind_rows(lapply(
+      peak.metrics, 
+      function(fname){
+        if(file.size(fname) > 0){ 
+          read.csv(fname)
+        }else{
+            return(NULL)
+        }
+      }
+      )) %>% 
       left_join(
         dat$meta %>% dplyr::select(id,sample_group, target, sample_replicate),
         by = 'id'
@@ -292,6 +366,15 @@ if (dir.exists('original_peaks')){
   qc <- 'count_peaks' 
   funcs[[qc]] <- function(df, tgt, var.x = 'npeak', var.y = 'sample_group', var.color = 'toIgG', add_facet = facet_grid(~caller, scales = 'free'), var.shape = 'filtered', xlab = 'Total Peaks (in thousand)', ylab = '', scale_color = scale_color_manual('', values = c("IgG_controlled"="indianred", "Target_only"="steelblue")), shape = '', plot.title = 'Peaks from each sample'){
     require(ggplot2)
+    
+    if (nrow(df) == 0){ 
+      return(
+        ggplot(data.frame(x=0,y=0))+
+          geom_blank()+
+          theme_minimal()
+      ) 
+    }
+    
     
     df <- as.data.frame(df) %>% 
       mutate(sample_replicate = ifelse(is.na(sample_replicate), 1, sample_replicate))
@@ -325,7 +408,17 @@ if (dir.exists('original_peaks')){
 if (dir.exists('original_peak_widths')){
   peak.widths <- list.files('original_peak_widths', full.names = T, pattern = 'original_peak_widths')
   if (length(peak.widths) > 0){
-    dat$wpeaks <- bind_rows(lapply(peak.widths, read.csv)) %>% 
+    dat$wpeaks <- bind_rows(lapply(
+      peak.widths,       
+      function(fname){
+        if(file.size(fname) > 0){ 
+          read.csv(fname)
+        }else{
+          return(NULL)
+        }
+      }
+      
+      )) %>% 
       left_join(
         dat$npeaks %>% dplyr::select(file,id, sample_group, target, sample_replicate,caller),
         by = 'file'
@@ -336,6 +429,14 @@ if (dir.exists('original_peak_widths')){
   
   funcs[[qc]] <- function(df, tgt, var.x = 'length', var.y = 'id', var.color = 'caller', xlab = 'Peak Width (bp)', ylab = '', scale_color = scale_color_manual('', values = c(SEACR='darkblue', MACS2narrow='red', MACS2broad='brown')), plot.title = 'Peak width'){
     require(ggplot2)
+    
+    if (nrow(df) == 0){ 
+      return(
+        ggplot(data.frame(x=0,y=0))+
+          geom_blank()+
+          theme_minimal()
+      ) 
+    }
     
     ## determine data range
     length.max <- as.data.frame(df) %>% 
@@ -405,6 +506,15 @@ if (dir.exists('reads_in_peak')){
   
   funcs[[qc]] <- function(df, tgt, var.x = 'FRiP', var.y = 'id', var.color = 'caller', var.shape = 'filtered', add_facet = NULL, xlab = 'Fraction of reads in peak', ylab = '', scale_color = scale_color_manual('', values = c(SEACR='darkblue', MACS2narrow='red', MACS2broad='brown')), scale_shape = scale_shape_manual('', values = c(filtered = 1, unfiltered = 2)), plot.title = 'Fraction of reads in peak'){
     require(ggplot2)
+    
+    if (nrow(df) == 0){ 
+      return(
+        ggplot(data.frame(x=0,y=0))+
+          geom_blank()+
+          theme_minimal()
+      ) 
+    }
+    
     
     as.data.frame(df) %>% 
       mutate(x = .[,var.x], y = .[,var.y], color = .[,var.color], shape = .[,var.shape]) %>% 
@@ -486,6 +596,16 @@ if (dir.exists('consensus_beds')){
   qc <- 'rep2conp'
   
   funcs[[qc]] <- function(df, plot.title){
+    
+    if (nrow(df) == 0){ 
+      return(
+        ggplot(data.frame(x=0,y=0))+
+          geom_blank()+
+          theme_minimal()
+      ) 
+    }
+    
+    
     df <- df %>% 
       mutate(
         shared = ifelse(grepl(',', sample.groups), 'shared', 'unique')
@@ -581,6 +701,15 @@ if (dir.exists('consensus_annotation')){
     require(dplyr)
     require(ggplot2)
     
+    if (nrow(df) == 0){ 
+      return(
+        ggplot(data.frame(x=0,y=0))+
+          geom_blank()+
+          theme_minimal()
+      ) 
+    }
+    
+    
     df %>% 
       ggplot(
         aes(y = genomic.location)
@@ -608,13 +737,20 @@ saveRDS(figs, 'figs.rds')
 saveRDS(dat, 'data.rds')
 saveRDS(funcs, 'funcs.rds')
 
+## cat dp.rds ####
+if (dir.exists('differential_peaks')){
+  dp <- do.call(c, lapply(
+    list.files('differential_peaks', full.names = T), readRDS
+  ))
+  dp %>% saveRDS('dp.rds')
+}
+
 ## prepare report.Rmd ####
 file.copy('report/report.setup.Rmd', 'report.Rmd')
 if (file.exists('read_metrics.csv')){file.append('report.Rmd', 'report/report.read_qc.Rmd')}
 if (dir.exists('original_peaks')){file.append('report.Rmd', 'report/report.orig_qc.Rmd')}
 if (dir.exists('consensus_peaks')){file.append('report.Rmd', 'report/report.conp_qc.Rmd')}
 if (dir.exists('differential_peaks')){
-  file.copy('differential_peaks/dp.rds', 'dp.rds')
   file.append('report.Rmd', 'report/report.diff_peaks.Rmd')
   }
 file.append('report.Rmd', 'report/report.deliverables.Rmd')
