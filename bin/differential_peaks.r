@@ -192,7 +192,7 @@ run_da <- function(
     y$samples$group <- ifelse(y$samples$group %in% 'control', control.group, test.group)
     
     ## write out results ####
-    saveRDS(list(y=y, design=design, fit=fit, test=test), paste(out.dir,'da.rds',sep = '/'))
+    # saveRDS(list(y=y, design=design, fit=fit, test=test), paste(out.dir,'da.rds',sep = '/'))
     if(!is.null(rename.feature)){colnames(test$genes)[1] <- rename.feature}
     df <- cbind(test$genes,df[c('logFC','logCPM','PValue','FDR','is.sig')])
     if(!is.null(fdr2) & !is.null(lfc2)){
@@ -239,7 +239,7 @@ run_da <- function(
         )
     }
     
-    return(list(summary = df_sum, y = y, df = df))
+    return(list(summary = df_sum, y = y, df = df, design=design, test=test))
     
 }
 
@@ -492,9 +492,11 @@ wrapper_one_conp <- function(ss, cmp, tgt, conp.bed, count.txts, fdr = 0.05, lfc
 args <- as.vector(commandArgs(T)) # ss, cmp, path/to/fragmentCounts.txt, path/to/conp.bed
 ss <- read.csv(args[1]) 
 if (grepl('dummy_file', args[2])){
-    stop (paste(args[2], "is a dummy file! Provide --comparison path/to/comparison_file (a comparison table in csv, txt, tsv or rds format)!"))
+    cat(args[2], "is a dummy file! Provide --comparison path/to/comparison_file (a comparison table in csv, txt, tsv or rds format)!")
+    quit()
 }else if (file.size(args[2]) == 0){
-    stop(paste( args[2], "is empty!"))
+   cat( args[2], "is empty!")
+    quit()
 }else if (grepl('.csv$', args[2])){
     cmp <- read.csv(args[2])
 }else if (grepl('.rds$', args[2])){
@@ -522,9 +524,3 @@ if (length(dp.list) == 0){
 }
 saveRDS(dp.list, 'dp.rds')
 
-dp_sum <- bind_rows(lapply(dp.list, function(dp){
-    bind_rows(lapply(dp, function(x){if(!is.null(x)){x$summary}}))
-})) %>% 
-    dplyr::relocate(target, output.folder, control.group, test.group, features.tested:FC.cutoff, control.samples:test.samples)
-dp_sum %>% 
-    write.table('DP_summary.txt', sep = '\t', quote = F, row.names = F)

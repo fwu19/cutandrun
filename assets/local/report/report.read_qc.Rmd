@@ -1,0 +1,89 @@
+
+## QC reads {.tabset .tabset-pills}
+
+### Plots {.tabset .tabset-pills}
+**A. Sequenced reads** - number of paired reads after adapter trimming and passed to alignment.
+
+**B. Reads aligned to target genome** - number of reads aligned to the target genome.
+
+**C. Alignment rate to target genome** - fraction of reads aligned to the target genome.
+
+**D. Reads aligned to E. coli genome** - number of reads aligned to E. coli genome.
+
+**E. Duplication rate** - fraction of duplicated reads.
+
+**F. Estimated library size** - estimated number of fragments in a library given the duplication rate.
+
+**G. Fragment length** - fragment length estimated based on paired-end sequencing.  
+
+```{r read_plots, results='asis', fig.width=fig.read.width, fig.height=fig.read.height}
+qc_read <- c("seq_depth", "aligned_reads", "aligned_pct", "aligned_reads_spikein", "dup_rate", "est_lib_size", "frag_lens_dens")
+if (length(qc_read) == 0){
+  cat('No plots were found!')
+  quit()
+}
+
+## targeted proteins
+for (tgt in c(targets, 'IgG')){
+  p1 <- wrap_plots(
+    c(lapply(
+      qc_read, 
+      function(i){
+        if (i %in% names(figs)){
+          figs[[i]][[tgt]]
+        }else{
+          ggplot(data.frame(x=0,y=0))+
+          geom_blank()+
+            theme_minimal()
+        }
+        
+      }), list(guide_area())), 
+    ncol = 3, guides = 'collect')+
+    plot_annotation(tag_levels = 'A')+
+    plot_layout(design = c(
+      area(1,1,4,9), area(1,11,4,19), area(1,21,4,29), 
+      area(6,1,9,9), area(6,11,9,19), area(6,21,9,29), 
+      area(11,1,19,9), area(11,11,19,19)
+    ))
+  
+  cat("\n\n")
+  cat("####", tgt, "\n\n")
+  print(p1)
+  cat("\n\n")
+  
+}
+
+
+```
+
+
+### Metrics
+```{r}
+cols2format <- intersect(c('bt2_overall_alignment_rate_target', 'bt2_overall_alignment_rate_spikein', 'dedup_percent_duplication'), colnames(meta))
+meta %>% 
+  mutate(
+    bt2_total_aligned_Ecoli = bt2_total_aligned_spikein,
+    Ecoli_alignment_rate = bt2_total_aligned_spikein/bt2_total_reads_spikein,
+  ) %>% 
+  arrange(sample_group, target, sample_replicate) %>% 
+  relocate(id, target, sample_group, sample_replicate) %>% 
+  unique.data.frame() %>% 
+  DT::datatable(
+  class = 'cell-border stripe', 
+  rownames = T,  
+  filter = 'top', 
+  editable = F, 
+  extensions = 'Buttons', 
+  options = list(
+    pageLength = 6, 
+    dom = 'Bfrtip',
+    buttons = c('csv')
+  )) %>% 
+  DT::formatRound(columns=cols2format, digits=4)
+
+```
+
+##  {.unlisted .unnumbered}
+
+$$\\[0.5in]$$
+

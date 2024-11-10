@@ -11,8 +11,8 @@ process DIFFERENTIAL_PEAKS {
     tuple val(target), path ( "counts/*" ), path ( "conp/*" )
 
     output:
-    path ( "*.{rds,txt}" ), emit: data
-    path ( "*" )
+    path ( "*.{rds,txt}" ), emit: data, optional:true
+    path ( "*" ), optional:true
 
     script:
     """

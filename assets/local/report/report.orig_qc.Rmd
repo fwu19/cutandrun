@@ -1,0 +1,48 @@
+## QC peaks {.tabset .tabset-pills}
+
+### Individual samples {.tabset .tabset-pills}
+**A. Peaks from each sample** - number of peaks called from each library.
+For each peak caller, both target-only peaks and target-against-IgG peaks were called and common peaks (shown as solid dots and referred to as filtered peaks) were retained for further analysis.
+
+**B. Fraction of reads in peak** - fraction of paired-end reads in filtered peaks.
+
+**C. Peak width** - peak width distribution of the filtered set.
+The upper bound of x-axis was limited to the maximum 3rd quantile of datasets.
+
+
+$$\\[0.1in]$$
+
+```{r peak_plots, results='asis', fig.width=fig.peak.width, fig.height=fig.peak.height}
+qc_peak <- c("count_peaks", "peak_frip", "peak_width")
+if (length(intersect(qc_peak, names(figs))) > 0){
+  for (tgt in targets){
+    p2 <- wrap_plots(
+      c(lapply(
+        qc_peak, 
+        function(i){
+          if (i %in% names(figs)){
+            figs[[i]][[tgt]]
+          }else{
+            ggplot(data.frame(x=0,y=0))+
+              geom_blank()+
+              theme_minimal()
+          }
+        }), list(guide_area())), 
+      guides = 'collect')+
+      plot_annotation(tag_levels = 'A')+
+      plot_layout(design = c(
+        area(1,1,9,19), area(1,21,9,29), 
+        area(11,1,19,19), area(11,21,19,29)
+      ))
+    
+    cat("\n\n")
+    cat("####", tgt, "\n\n")
+    print(p2)
+    cat("\n\n")
+    
+  }
+}
+
+```
+
+

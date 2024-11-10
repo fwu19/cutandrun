@@ -25,24 +25,26 @@ input.dirs <- c(
 )
 
 dat <- list()
-funcs <- list()
 figs <- list()
+funcs <- list()
 
 ## read sample sheet ####
 ss <- read.csv('sample_sheet.csv')
 targets <- sort(setdiff(unique(ss$target), c('IgG', 'Input', 'input'))) # targets to make QC plots
+dat$ss <- ss
 
+## reads dat & figs ####
+{
 ## get read metrics ####
 if (file.exists('read_metrics.csv')){
   dat$meta <- read.csv('read_metrics.csv') %>% 
     left_join(
-      ss, by = 'id'
+      ss %>% dplyr::select(id, group, sample_group, target, sample_replicate), 
+      by = 'id'
     )
   meta <- dat$meta # for plotting
   
-  
-  ## plot accordingly
-  
+
   ## input reads ####
   if ('bt2_total_reads_target' %in% colnames(meta)){
     qc <- 'seq_depth'
@@ -270,6 +272,12 @@ if (dir.exists('fragment_lengths')){
   ); names(figs[['frag_lens_dens']]) <- c(targets, 'IgG')
   
 }
+  
+  
+}
+
+## peaks dat & figs ####
+{
 ## get metrics of the entire set of original peaks ####
 if (dir.exists('original_peaks')){
   peak.metrics <- list.files('original_peaks', full.names = T, pattern = 'original_peaks')
@@ -428,6 +436,11 @@ if (dir.exists('reads_in_peak')){
   
 }
 
+
+}
+
+## conp dat & figs ####
+{
 ## get metrics of replicated peaks ####
 if (dir.exists('replicated_peaks')){
   rep.metrics <- list.files('replicated_peaks', full.names = T, pattern = 'replicated_peaks')
@@ -587,8 +600,22 @@ if (dir.exists('consensus_annotation')){
   names(figs[[qc]]) <- names(dat$conp_ann)
 }
 
+
+}
+
 ## Save results ####
-saveRDS(funcs, 'funcs.rds')
 saveRDS(figs, 'figs.rds')
 saveRDS(dat, 'data.rds')
+saveRDS(funcs, 'funcs.rds')
 
+## prepare report.Rmd ####
+file.copy('report/report.setup.Rmd', 'report.Rmd')
+if (file.exists('read_metrics.csv')){file.append('report.Rmd', 'report/report.read_qc.Rmd')}
+if (dir.exists('original_peaks')){file.append('report.Rmd', 'report/report.orig_qc.Rmd')}
+if (dir.exists('consensus_peaks')){file.append('report.Rmd', 'report/report.conp_qc.Rmd')}
+if (dir.exists('differential_peaks')){
+  file.copy('differential_peaks/dp.rds', 'dp.rds')
+  file.append('report.Rmd', 'report/report.diff_peaks.Rmd')
+  }
+file.append('report.Rmd', 'report/report.deliverables.Rmd')
+file.append('report.Rmd', 'report/report.methods.Rmd')

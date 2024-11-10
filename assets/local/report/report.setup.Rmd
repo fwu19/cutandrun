@@ -1,0 +1,117 @@
+---
+title: "Cut&Run analysis"
+author: ""
+date: "`r format(Sys.time(), '%B %d , %Y')`"
+output: 
+    html_document:
+        toc: TRUE
+        toc_float: FALSE
+        toc_depth: 2
+        toc_collapsed: FALSE
+        theme: lumen
+        number_sections: FALSE
+        coding_folding: hide
+        code_download: FALSE
+editor_options: 
+  chunk_output_type: console
+  markdown: 
+    wrap: sentence
+params:
+  dat.dir: "./"
+---
+
+```{r setup, include=FALSE, dev='CairoPNG'}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning=FALSE, dev="CairoPNG")
+# knitr::opts_knit$set(root.dir = params$dat.dir)
+
+options(stringsAsFactors = F)
+options(scipen = 99)
+library(Cairo)
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+library(kableExtra)
+
+```
+
+```{r }
+## read precomputed data
+dat <- readRDS('data.rds')
+ss <- dat$ss
+meta <- dat$meta
+figs <- readRDS('figs.rds')
+
+dp.rds <- 'dp.rds'
+if (file.exists(dp.rds)){
+  dp.list <- readRDS(dp.rds)
+  
+  dp_sum <- bind_rows(lapply(dp.list, function(dp){
+    bind_rows(lapply(dp, function(x){if(!is.null(x)){x$summary}}))
+  })) %>% 
+    dplyr::relocate(target, output.folder, control.group, test.group, features.tested:FC.cutoff, control.samples:test.samples)
+}
+
+
+## initiate variables
+targets <- sort(setdiff(unique(meta$target), c('IgG', 'Input'))) # targets to make QC plots
+ntargets <- length(targets)
+ngroups <- length(unique(meta$sample_group))
+
+fig.read.width <- 12
+fig.read.height <- max(ngroups*1.2 +2, 8)
+
+fig.peak.width <- 12
+fig.peak.height <- max(ngroups*1.2 +2, 8)
+
+fig.rep.width <- 12
+fig.rep.height <- max(ngroups +2, 8)
+
+fig.conp.height <- ntargets*2+1
+fig.conp.height2 <- ntargets+1
+
+fig.conp.width <- ceiling(sqrt(ntargets))*8
+
+```
+
+```{r make_tabs, include=FALSE}
+# Function to create multiple tabs
+make_tabs <- function(title, contents){
+  cat(title, "\n\n")
+  for (cnt in contents){print(cnt); cat("\n")}
+  cat("\n\n")
+}
+```
+
+## Summary
+
+This document describes the data analysis of Cut & Run or Cut & Tag experiments.
+
+$$\\[0.5in]$$
+
+## Sample sheet
+
+```{r sample_sheet}
+
+ss %>% 
+  select(c(id, sample_group, target, sample_replicate, control)) %>%
+  arrange(sample_group, target, sample_replicate) %>% 
+  unique.data.frame() %>% 
+  DT::datatable(
+  class = 'cell-border stripe', 
+  rownames = T,  
+  filter = 'top', 
+  editable = F, 
+  extensions = 'Buttons', 
+  options = list(
+    pageLength = 6, 
+    dom = 'Bfrtip',
+    buttons = c('csv')
+  ))
+
+```
+
+## {.unnumbered .unlisted}
+
+$$\\[0.5in]$$
+
+

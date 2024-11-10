@@ -1,0 +1,61 @@
+## {.unnumbered .unlisted}
+
+$$\\[0.5in]$$
+
+
+## Differential peaks (DP)
+
+
+### DP Summary
+
+```{r }
+if (exists('dp_sum')){
+dp_sum %>% 
+  DT::datatable(
+  class = 'cell-border stripe', 
+  rownames = T,  
+  filter = 'top', 
+  editable = F, 
+  extensions = 'Buttons', 
+  options = list(
+    pageLength = 6, 
+    dom = 'Bfrtip',
+    buttons = c('csv')
+  ))
+}
+```
+
+$$\\[0.2in]$$
+
+### DP plots {.tabset .tabset-pills}
+
+```{r display_plots, results='asis', fig.cap=c('Fig. Differential expression analysis. (A) PCA plot. (B) MA/MD plot. (C) Volcano plot'), fig.width=12, fig.height=4}
+if (exists('dp.list')){
+for (tgt in targets){
+  cat ('####', tgt, '{.tabset .tabset-pills}\n\n') # target level
+  
+  cnp <- grep(tgt, names(dp.list), value = T)
+  
+  for (i in cnp){
+    cat ('#####', i, '{.tabset .tabset-pills}\n\n') # conp level
+    dp <- dp.list[[i]]
+    dp[sapply(dp, is.null)] <- NULL
+    for (j in 1:length(dp)){
+      plist <- dp[[j]]$plots
+      p <- wrap_plots(plist, nrow = 1) + plot_annotation(tag_levels = 'A')
+      
+      make_tabs(
+        paste("######", names(dp)[j]),
+        list(p)
+      )
+    }
+  }
+}
+
+}
+```
+
+## {.unnumbered .unlisted}
+
+$$\\[0.5in]$$
+

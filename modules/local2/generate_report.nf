@@ -17,15 +17,15 @@ process GENERATE_REPORT {
     path( "consensus_beds/*" )
     path( "consensus_annotation/*" )
     path( "differential_peaks/*" )
-    path( "report.Rmd" )
+    path( "*" )
 
     output:
-    tuple path( "*.{rds,html}" )
+    tuple path( "*.{rds,html,Rmd}" )
 
     script:
     """
     plot_metrics.r
-    render_report.r report.Rmd ./
+    render_report.r report.Rmd
     mv report.html _Analysis_report.html
     """
 }

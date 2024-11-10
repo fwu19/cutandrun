@@ -650,7 +650,7 @@ workflow CUTANDRUN {
             * Count reads in consensus peaks
             */
             // ch_samtools_bam.view()
-            ch_con_peaks
+            ch_con_bed
                 .cross (
                     ch_samtools_bam
                         .filter { it[0].target != "IgG" }
@@ -682,7 +682,8 @@ workflow CUTANDRUN {
             * Call differential peaks
             */
             ch_comparison = params.comparison ? file ( params.comparison, checkIfExists: true ) : ch_dummy_file
-
+            // if dummy file or empty file is used, throw a warning and continue.
+            // if file has contents but not a correct format, throw an error.
             DIFFERENTIAL_PEAKS(
                 samplesheet,
                 ch_comparison,
@@ -710,7 +711,7 @@ workflow CUTANDRUN {
                 ch_con_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
                 ch_conp_ann.collect{it[1]}.ifEmpty([]),
                 ch_dp.flatten().collect().ifEmpty([]),
-                file("$projectDir/assets/local/report.Rmd", checkIfExists: true)
+                Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
             )
 
 
