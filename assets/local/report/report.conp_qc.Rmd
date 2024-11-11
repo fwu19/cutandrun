@@ -8,8 +8,36 @@ $$\\[0.1in]$$
 
 ```{r}
 if ('nreps' %in% names(dat)){
-dat$nreps  %>% 
-  relocate(target, sample_group, group, caller, nrep, ids) %>% 
+  npeaks <- dat$npeaks %>% 
+    mutate(
+      group = paste(sample_group, target, sep = '_'),
+      peak_type = paste(toIgG, filtered, sep = '_'),
+      sample_replicate = paste0('replicate', sample_replicate)
+      ) %>% 
+    dplyr::select(id, group, caller, peak_type, sample_replicate, npeak)
+  npeaks_final <- bind_rows(lapply(
+    split(npeaks, paste(npeaks$id, npeaks$caller)),
+    function(x){
+      if(sum(grepl('_filtered', x$peak_type))){
+        x %>% filter(grepl('_filtered', x$peak_type))
+      }else{
+        x %>% filter(grepl('Target_only_unfiltered', x$peak_type))
+      }
+    }
+  )) %>% 
+    dplyr::select(-id) %>% 
+    tidyr::pivot_wider(names_from = sample_replicate, values_from = npeak) 
+  
+  nreps <- dat$nreps%>% 
+    dplyr::select(group, caller, peak.count, ids) %>% 
+    dplyr::rename("replicated.peaks" = "peak.count") %>% 
+    left_join(
+      npeaks_final, by = c('group', 'caller')
+    ) %>% 
+    dplyr::relocate(ids, peak_type, .after=last_col())
+  
+  
+  nreps  %>% 
   DT::datatable(
   class = 'cell-border stripe', 
   rownames = T,  

@@ -672,7 +672,7 @@ workflow CUTANDRUN {
             ch_conp_reads
                 .groupTuple( by: 0 )
                 .map { it -> [ it[0], it[1].flatten().collect() ]}
-                .cross ( CONSENSUS_PEAKS.out.bed )
+                .cross ( ch_con_bed )
                 .map { it -> [ it[0][0], it[0][1], it[1][1] ]}
                 .set { ch_tgt_reads_conp }
             //ch_tgt_reads_conp.view()
