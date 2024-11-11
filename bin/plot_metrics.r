@@ -286,7 +286,7 @@ if (dir.exists('fragment_lengths')){
   dat$frag_lens <- bind_rows(lapply(
     length.list,
     function(fname){
-      if(file.size(fname) > 0 ){
+      if(file.size(fname) > 1 ){
         read.delim(fname, header = F, col.names = c('length','count'), colClasses = 'numeric') %>%
           mutate(
             weight = count/sum(count),
@@ -350,7 +350,7 @@ if (dir.exists('original_peaks')){
     dat$npeaks <- bind_rows(lapply(
       peak.metrics, 
       function(fname){
-        if(file.size(fname) > 0){ 
+        if(file.size(fname) > 1){ 
           read.csv(fname)
         }else{
             return(NULL)
@@ -411,7 +411,7 @@ if (dir.exists('original_peak_widths')){
     dat$wpeaks <- bind_rows(lapply(
       peak.widths,       
       function(fname){
-        if(file.size(fname) > 0){ 
+        if(file.size(fname) > 1){ 
           read.csv(fname)
         }else{
           return(NULL)
@@ -480,7 +480,7 @@ if (dir.exists('reads_in_peak')){
   dat$frip <- bind_rows(lapply(
     peak.reads,
     function(fname){
-      if(file.size(fname) > 0 ){
+      if(file.size(fname) > 1 ){
         read.csv(fname, header = F, col.names = c('file','reads_in_peak')) %>%
           mutate(
             weight = reads_in_peak/sum(reads_in_peak),

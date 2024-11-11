@@ -17,9 +17,8 @@ process SAMPLESHEET_CHECK {
     task.ext.when == null || task.ext.when
 
     script:
-    def meta = metadata.baseName != 'dummy_file.txt' ? "$metadata" : ''
     """
-    samplesheet_check.r $samplesheet samplesheet.valid.csv $params.use_control $meta
+    samplesheet_check.r $samplesheet samplesheet.valid.csv $params.use_control $metadata
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

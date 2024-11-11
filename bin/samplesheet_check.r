@@ -6,9 +6,13 @@ options(stringsAsFactors = F)
 library(dplyr)
 
 ## functions ####
-add_metadata <- function(ss, meta_csv=NULL){
+add_metadata <- function(ss, meta_csv){
     ## update with metadata if provided
     # metadata contains a required columns id and optional columns: sample_group, sample_replicate, target, control, call_peak, call_rep_peak, call_con_peak
+    
+    if (grepl('dummy', meta_csv)){
+        return(ss)
+    }
     
     if (file_test('-f', meta_csv) & grepl('.csv$', meta_csv)){
         meta <- read.csv(meta_csv)
@@ -28,7 +32,7 @@ args <- as.vector(commandArgs(T))
 in_csv <- args[1]
 out_csv <- args[2]
 use_control <- as.logical(args[3]) # not used
-meta_csv <- ifelse(length(args) > 3, args[4], NULL)
+meta_csv <- ifelse(length(args) > 3, args[4], '')
 
 
 ## generate sample sheet ####
