@@ -28,26 +28,28 @@ workflow CALL_PEAKS {
      * for SEACR, use markdup for target and dedup for control
      * CHANNEL: Create target/control pairings
      */
-    bedgraph_markdup
-        .filter { it -> it[0].is_control == false }
-        .map    { it -> [ it[0].control_group, it ] }
-        .set { ch_bedgraph_target }
-    // ch_bedgraph_target.view()
-    // [ control_group, meta, bedgraph ]
-
     bedgraph_dedup
         .filter { it -> it[0].is_control == true }
         .map { it -> [it[0].control_group, it] }
         .set { ch_bedgraph_control }
     // ch_bedgraph_control.view
-    // [ control_group, meta, bedgraph ]
+    // [ control_group, [ meta, bedgraph ] ]
 
-    ch_bedgraph_target
-        .filter { it -> it[0] != "" }
-        .cross( ch_bedgraph_control )
-        .map { it -> [ it[0][1][0], it[0][1][1], it[1][1][1] ] }
+    bedgraph_markdup
+        .filter { it -> it[0].is_control == false }
+        .map    { it -> [ it[0].control_group, it ] }
+        .set { ch_bedgraph_target }
+    // ch_bedgraph_target.view()
+    // [ control_group, [ meta, bedgraph ] ]
+
+    ch_bedgraph_control
+        .cross(
+            ch_bedgraph_target
+                .filter { it -> it[0] != "" }
+        )
+        .map { it -> [ it[1][1][0], it[1][1][1], it[0][1][1] ] }
         .set { ch_bedgraph_paired }
-        // EXAMPLE CHANNEL STRUCT: [[META], TARGET_BEDGRAPH, CONTROL_BEDGRAPH]
+        // EXAMPLE CHANNEL STRUCT: [[TARGET META], TARGET_BEDGRAPH, CONTROL_BEDGRAPH]
 
     /*
     * MODULE: Call peaks using SEACR with IgG control
@@ -134,15 +136,17 @@ workflow CALL_PEAKS {
     /*
     * CHANNEL: Create target/control pairings
     */
-    ch_bam.target
-        .filter { it -> it[0] != "" }
-        .cross ( ch_bam.control )
+    ch_bam.control
+        .cross (
+            ch_bam.target
+                .filter { it -> it[0] != "" }
+        )
         .map {
-            row -> [ row[0][1][0], row[0][1][1], row[1][1][1] ]
+            row -> [ row[1][1][0], row[1][1][1], row[0][1][1] ]
         }
         .set { ch_bam_paired }
     //ch_bam_paired | view
-    // EXAMPLE CHANNEL STRUCT: [[META], TARGET_BAM, CONTROL_BAM]
+    // EXAMPLE CHANNEL STRUCT: [[TARGET META], TARGET_BAM, CONTROL_BAM]
 
 
     ch_macs2_peaks_narrow_filtered  = Channel.empty()
