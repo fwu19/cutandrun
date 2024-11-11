@@ -6,14 +6,14 @@ process REPLICATED_PEAKS {
     tag "Generate replicated peaks from $group"
 
     input:
-    tuple val(group), val(target), path ( "peaks/*" )
+    tuple val( group ), val( target ), path ( "peaks/*" )
     val ( min_reps )
 
 
     output:
     tuple val(target), path ( "*.csv" ), emit: csv, optional: true
     tuple val(target), path ( "*.rds" ), emit: rds, optional: true
-    tuple val(target), path ( "*.bed" ), emit: bed, optional: true
+    tuple val(target), path ( "{replicated,singleton}/*.bed" ), emit: bed, optional: true
 
     script:
     """

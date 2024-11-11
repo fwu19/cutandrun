@@ -1,5 +1,8 @@
 #!/usr/bin/env Rscript
 
+## Generate replicated peaks present in `min.reps` replicates
+## Output singleton peaks if only 1 replicate is available.
+
 options(stringsAsFactors = F)
 options(scipen = 99)
 library(dplyr)
@@ -9,34 +12,38 @@ args <- commandArgs(T) # path/to/original_peaks.rds, path/to/original_peak_metri
 group.id <- args[1] # will be used as output prefix
 min.reps <- as.integer(args[2])
 
-merge_reps <- function(rep.peaks, min.reps){
+merge_reps <- function(peak.list, min.reps = 2){
   require(GenomicRanges)
   
-  peaks2merge <- sapply(rep.peaks,length)>0 # at least one rep has peaks called
+  k <- sapply(peak.list,length)>0 # at least one rep has peaks called
+
+  if(sum(k) == 0){return(NULL)}
   
-  if(sum(peaks2merge)>1){
+  lst <- list()
+  if(sum(k) > 1){ # more than 2 replicates
     conp <- GRanges()
     
-    for (pk in rep.peaks[peaks2merge]){
+    for (pk in peak.list[k]){
       conp <- c(conp, pk)
     }
     
     conp <- reduce(conp)
     
-    keep.conp <- rowSums(
-      as.matrix(sapply(rep.peaks, function(pk){
-        if(length(pk)>0){countOverlaps(conp,pk)}else{rep(0,length(conp))}
-      }))
-      >0) >= min.reps # peaks shared by at least this number of replicates
+    keep.conp <- rowSums(as.matrix(sapply(peak.list[k], function(pk){countOverlaps(conp,pk)}))>0) >= min.reps # peaks shared by at least this number of replicates
     
     if(sum(keep.conp) > 0){
-      return(conp[keep.conp])
+      lst$replicated <- conp[keep.conp]
+    }else{
+      lst$replicated <- GRanges()
     }
-  }else if (sum(peaks2merge) == 1 ){
-    return(rep.peaks[[which(peaks2merge)]])
-  }else{
-    return(NULL)
+    lst$singleton <- GRanges()
+  }else if (sum(k) == 1 ){ # only 1 replicate
+    lst$replicated <- GRanges()
+    lst$singleton <- peak.list[k][[1]]
+    
   }
+  
+  return(lst)
 }
 
 
@@ -45,11 +52,14 @@ peak.list <- list.files('peaks/', full.names = T)
 peaks <- lapply(
   peak.list,
   function(fname){
-    if(file.size(fname) > 0){
+    if(file.size(fname) > 1){
       GenomicRanges::makeGRangesFromDataFrame(
         read.delim(fname, header = F)[1:3], seqnames.field = 'V1', start.field = 'V2', end.field = 'V3', starts.in.df.are.0based = T
       )
+    }else{
+      GRanges()
     }
+    
   }); names(peaks) <- basename(peak.list)
 
 ## exclude some samples if required
@@ -73,9 +83,22 @@ reps <- lapply(
 
 ## summarize reproduced peaks ####
 nreps <- bind_rows(mapply(
-      function(pk, caller){
-        data.frame(caller = caller, nrep = length(pk))
-      }, reps, names(reps), SIMPLIFY = F
+      function(lst, caller){
+        if (is.null(lst)){
+          data.frame(
+            caller = caller, 
+            peak.count = 0
+          )
+          
+        }else {
+          data.frame(
+            caller = caller, 
+            peak.count = length(lst$replicated)
+          )
+        }
+
+      }, 
+      reps, names(reps), SIMPLIFY = F
     )) %>% 
   mutate(
     group = group.id
@@ -98,23 +121,44 @@ write.table(nreps, paste(group.id, 'replicated_peaks.csv', sep = '.'), sep = ','
 
 
 ## write out replicated peaks ####
+reps[sapply(reps, is.null)] <- NULL
+
 rep.files <- paste(
       group.id, 
       plyr::mapvalues(names(reps), from = c('MACS2broad', 'MACS2narrow', 'SEACR'), to = c('macs2_broad_peaks.bed', 'macs2_narrow_peaks.bed', 'seacr_peaks.bed')), 
       sep = '.'
     )
 
-
+## replicated peaks
+od <- 'replicated'
+if (!dir.exists(od)){dir.create(od, recursive = T)}
 mapply(
-  function(pk, fname){
-    if (length(pk) > 0){
-      df <- as.data.frame(pk)[1:3]
+  function(lst, fname){
+    if (length(lst$replicated) > 0){
+      df <- as.data.frame(lst$replicated)[1:3]
       df[,2] <- df[,2] - 1
-      write.table(df, fname, sep = '\t', quote = F, row.names = F, col.names = F)
+      write.table(df, file.path(od, fname), sep = '\t', quote = F, row.names = F, col.names = F)
     }
+    
   }, 
   reps, 
   rep.files, 
   SIMPLIFY = F
 )       
 
+## singleton
+od <- 'singleton'
+if (!dir.exists(od)){dir.create(od, recursive = T)}
+mapply(
+  function(lst, fname){
+    if (length(lst$singleton) > 0){
+      df <- as.data.frame(lst$singleton)[1:3]
+      df[,2] <- df[,2] - 1
+      write.table(df, file.path(od, fname), sep = '\t', quote = F, row.names = F, col.names = F)
+    }
+    
+  }, 
+  reps, 
+  rep.files, 
+  SIMPLIFY = F
+)       
