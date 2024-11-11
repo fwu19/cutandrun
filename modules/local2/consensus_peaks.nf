@@ -6,8 +6,7 @@ process CONSENSUS_PEAKS {
     tag "Generate consensus peaks from $target"
 
     input:
-    path (samplesheet)
-    tuple val (target), path ( "peaks/*" )
+    tuple val (target), path ( "peaks/*" ), path (samplesheet)
 
     output:
     tuple val(target), path ( "*.csv" ), emit: csv

@@ -116,7 +116,7 @@ nconps <- bind_rows(mapply(
 
 
 ## save results ####
-saveRDS(conps, 'consensus_peaks.rds')
+saveRDS(conps, paste(tgt, 'consensus_peaks.rds', sep = '.'))
 write.table(nconps, paste(tgt, 'consensus_peaks.csv', sep = '.'), sep = ',', quote = F, row.names = F)
 
 

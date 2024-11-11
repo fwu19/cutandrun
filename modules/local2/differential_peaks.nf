@@ -6,9 +6,7 @@ process DIFFERENTIAL_PEAKS {
     tag "Call differential peaks on $target"
 
     input:
-    path (samplesheet)
-    path (comparison)
-    tuple val(target), path ( "counts/*" ), path ( "conp/*" )
+    tuple val(target), path ( "counts/*" ), path ( "conp/*" ), path (samplesheet), path (comparison)
 
     output:
     path ( "*.rds" ), emit: data, optional:true

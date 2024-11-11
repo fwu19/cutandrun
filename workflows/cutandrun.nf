@@ -573,7 +573,7 @@ workflow CUTANDRUN {
         READS_IN_PEAK(
             ch_peak_bam
         )
-        ch_rip = READS_IN_PEAK.out.csv.collect{it[1]}
+        ch_rip = READS_IN_PEAK.out.csv
         // ch_rip.view()
 
 
@@ -611,17 +611,17 @@ workflow CUTANDRUN {
         )
         ch_rep_bed = REPLICATED_PEAKS.out.bed
         ch_rep_csv = REPLICATED_PEAKS.out.csv
-        // ch_rep_bed.view()
+        //ch_rep_bed.view()
         // [ target, [peaks] ]
 
         /*
         * Generate consensus peaks and collect metrics
         */
         CONSENSUS_PEAKS(
-            samplesheet,
             ch_rep_bed
             .groupTuple ( by: 0 )
             .map { it -> [ it[0], it[1].flatten().collect() ] }
+            .combine ( samplesheet )
         )
         ch_con_bed = CONSENSUS_PEAKS.out.bed
         ch_con_csv = CONSENSUS_PEAKS.out.csv
@@ -681,13 +681,13 @@ workflow CUTANDRUN {
             /*
             * Call differential peaks
             */
-            ch_comparison = params.comparison ? file ( params.comparison, checkIfExists: true ) : ch_dummy_file
+            ch_comparison = params.comparison ? Channel.fromPath( params.comparison, checkIfExists: true ) : ch_dummy_file
             // if dummy file or empty file is used, throw a warning and continue.
             // if file has contents but not a correct format, throw an error.
             DIFFERENTIAL_PEAKS(
-                samplesheet,
-                ch_comparison,
                 ch_tgt_reads_conp
+                    .combine(samplesheet)
+                    .combine(ch_comparison)
             )
             ch_dp = DIFFERENTIAL_PEAKS.out.data
             //ch_dp.view()
@@ -699,6 +699,7 @@ workflow CUTANDRUN {
             /*
             * Make plots for report
             */
+            ch_report_rmd = params.local_assets ? Channel.fromPath("${params.local_assets}/report/", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
             GENERATE_REPORT(
                 samplesheet,
                 ch_read_metrics.ifEmpty([]),
@@ -711,7 +712,7 @@ workflow CUTANDRUN {
                 ch_con_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
                 ch_conp_ann.collect{it[1]}.ifEmpty([]),
                 ch_dp.flatten().collect().ifEmpty([]),
-                Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
+                ch_report_rmd
             )
 
 
