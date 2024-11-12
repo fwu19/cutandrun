@@ -27,7 +27,11 @@ input.dirs <- c(
 
 theme_custom <- theme_bw()+
   theme(
-    text = element_text(size = 12),
+    plot.title = element_text(size = 10),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 10),
+    legend.text = element_text(size = 8),
+    legend.title = element_text(size = 8),
     axis.text.x = element_text(angle = 90, hjust = 1),
     strip.text.y = element_text(angle = 0),
     legend.position = 'top'
