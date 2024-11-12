@@ -25,6 +25,15 @@ input.dirs <- c(
   'differential_peaks'
 )
 
+theme_custom <- theme_bw()+
+  theme(
+    text = element_text(size = 12),
+    axis.text.x = element_text(angle = 90, hjust = 1),
+    strip.text.y = element_text(angle = 0),
+    legend.position = 'top'
+  )
+
+  
 dat <- list()
 figs <- list()
 funcs <- list()
@@ -70,13 +79,7 @@ if (file.exists('read_metrics.csv')){
         ggplot(mapping = aes(x = x, y = y, color = color))+
         geom_jitter(height = 0.1, width = 0)+
         labs(x = xlab, y = ylab, color = color, title = plot.title)+
-        theme_bw()+
-        theme(
-          text = element_text(size = 8),
-          axis.text.x = element_text(angle = 90, hjust = 1),
-          strip.text.y = element_text(angle = 0),
-          legend.position = 'top'
-        )
+        theme_custom
       
     }
     
@@ -88,7 +91,7 @@ if (file.exists('read_metrics.csv')){
   if ('bt2_total_aligned_target' %in% colnames(meta)){
     qc <- 'aligned_reads'
     
-    funcs[[qc]] <- function(df, tgt, var.x = 'bt2_total_aligned_target', var.y = 'sample_group', xlab = 'Total aligned reads (in million) to the target genome', ylab = '', color = 'Replicate', plot.title = 'Reads aligned to target genome'){
+    funcs[[qc]] <- function(df, tgt, var.x = 'bt2_total_aligned_target', var.y = 'sample_group', xlab = 'Aligned reads (in million) ', ylab = '', color = 'Replicate', plot.title = 'Reads aligned to target genome'){
       require(ggplot2)
       
       if (nrow(df) == 0){ 
@@ -109,13 +112,7 @@ if (file.exists('read_metrics.csv')){
         labs(
           x = xlab, y = ylab, 
           color = color, title = plot.title)+
-        theme_bw()+
-        theme(
-          text = element_text(size = 8),
-          axis.text.x = element_text(angle = 90, hjust = 1),
-          strip.text.y = element_text(angle = 0),
-          legend.position = 'top'
-        )
+        theme_custom
       
     }
     
@@ -126,7 +123,7 @@ if (file.exists('read_metrics.csv')){
   ## Alignment rate to the target genome ####
   if ('bt2_overall_alignment_rate_target' %in% colnames(meta)){
     qc <- 'aligned_pct' 
-    funcs[[qc]] <- function(df, tgt, var.x = 'bt2_overall_alignment_rate_target', var.y = 'sample_group', xlab = 'Fraction of reads aligned to the target genome', ylab = '', color = 'Replicate', plot.title = 'Alignment rate to target genome'){
+    funcs[[qc]] <- function(df, tgt, var.x = 'bt2_overall_alignment_rate_target', var.y = 'sample_group', xlab = 'Fraction of reads aligned', ylab = '', color = 'Replicate', plot.title = 'Alignment rate to target genome'){
       require(ggplot2)
       
       if (nrow(df) == 0){ 
@@ -147,13 +144,7 @@ if (file.exists('read_metrics.csv')){
         labs(
           x = xlab, y = ylab, 
           color = color, title = plot.title)+
-        theme_bw()+
-        theme(
-          text = element_text(size = 8),
-          axis.text.x = element_text(angle = 90, hjust = 1),
-          strip.text.y = element_text(angle = 0),
-          legend.position = 'top'
-        )
+        theme_custom
       
     }
     
@@ -165,7 +156,7 @@ if (file.exists('read_metrics.csv')){
   if ('bt2_overall_alignment_rate_spikein' %in% colnames(meta)){
     qc <- 'aligned_reads_spikein'
     
-    funcs[[qc]] <- function(df, tgt, var.x = 'bt2_overall_alignment_rate_spikein', var.y = 'sample_group', xlab = 'Total aligned reads (in thousand) to the spike-in genome', ylab = '', color = 'Replicate', plot.title = 'Reads aligned to spike-in genome'){
+    funcs[[qc]] <- function(df, tgt, var.x = 'bt2_total_aligned_spikein', var.y = 'sample_group', xlab = 'Aligned reads (in thousand)', ylab = '', color = 'Replicate', plot.title = 'Reads aligned to spike-in genome'){
       require(ggplot2)
       
       if (nrow(df) == 0){ 
@@ -186,13 +177,7 @@ if (file.exists('read_metrics.csv')){
         labs(
           x = xlab, y = ylab, 
           color = color, title = plot.title)+
-        theme_bw()+
-        theme(
-          text = element_text(size = 8),
-          axis.text.x = element_text(angle = 90, hjust = 1),
-          strip.text.y = element_text(angle = 0),
-          legend.position = 'top'
-        )
+        theme_custom
       
     }
     
@@ -226,12 +211,7 @@ if (file.exists('read_metrics.csv')){
           x = xlab, y = ylab, 
           color = color, title = plot.title)+
         theme_bw()+
-        theme(
-          text = element_text(size = 8),
-          axis.text.x = element_text(angle = 90, hjust = 1),
-          strip.text.y = element_text(angle = 0),
-          legend.position = 'top'
-        )
+        theme_custom
     }
     
     figs[[qc]] <- lapply(c(targets,'IgG'), funcs[[qc]], df = meta)
@@ -242,7 +222,7 @@ if (file.exists('read_metrics.csv')){
   ## Estimated library size ####
   if ('dedup_estimated_library_size' %in% colnames(meta)){
     qc <- 'est_lib_size' 
-    funcs[[qc]] <- function(df, tgt, var.x = 'dedup_estimated_library_size', var.y = 'sample_group', xlab = 'Esitmated library size (in million)', ylab = '', color = 'Replicate', plot.title = 'Estimated library size'){
+    funcs[[qc]] <- function(df, tgt, var.x = 'dedup_estimated_library_size', var.y = 'sample_group', xlab = 'library size (in million)', ylab = '', color = 'Replicate', plot.title = 'Estimated library size'){
       require(ggplot2)
       
       if (nrow(df) == 0){ 
@@ -263,12 +243,7 @@ if (file.exists('read_metrics.csv')){
         labs(
           x = xlab, y = ylab,
           color = color, title = plot.title)+
-        theme_bw()+
-        theme(
-          text = element_text(size = 8),
-          strip.text.y = element_text(angle = 0),
-          legend.position = 'top'
-        )
+        theme_custom
     }
     
     figs[[qc]] <- lapply(c(targets,'IgG'), funcs[[qc]], df = meta)
@@ -316,12 +291,7 @@ if (dir.exists('fragment_lengths')){
       ggplot(mapping = aes(x=x, y=y, group = group, color = color))+
       geom_line(size=0.5)+
       labs(x=xlab, y=ylab, color=color, title = plot.title)+
-      theme_bw()+
-      theme(
-        text = element_text(size = 8),
-        strip.text.y = element_text(angle = 0),
-        legend.position = 'top'
-      )
+      theme_custom
     
     if (length(unique(df$sample_group)) > 1){
       p+ 
@@ -389,12 +359,7 @@ if (dir.exists('original_peaks')){
       labs(
         x = xlab, y = ylab, 
         shape = shape, title = plot.title)+
-      theme_bw()+
-      theme(
-        text = element_text(size = 8),
-        axis.text.x = element_text(angle = 90, hjust = 1),
-        legend.position = 'top'
-      )
+      theme_custom
   }
   
   df <- dat$npeaks 
@@ -460,12 +425,7 @@ if (dir.exists('original_peak_widths')){
       scale_color+
       coord_cartesian(xlim = c(0, length.max))+
       labs(x=xlab, y=ylab, title = plot.title)+
-      theme_bw()+
-      theme(
-        text = element_text(size = 8),
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        legend.position = 'top'
-      )
+      theme_custom
   }
   
   df <- dat$wpeaks 
@@ -528,13 +488,7 @@ if (dir.exists('reads_in_peak')){
         x = xlab, y = ylab, 
         title = plot.title
       )+
-      theme_bw()+
-      theme(
-        text = element_text(size = 8),
-        axis.text.x = element_text(angle = 90, hjust = 1),
-        plot.title = element_text(size = 10),
-        legend.position = 'top'
-      )
+      theme_custom
     
     
   }
@@ -621,7 +575,7 @@ if (dir.exists('consensus_beds')){
       ggplot(aes(y = sample.group, fill = factor(shared, levels = c('unique', 'shared'))))+
       geom_bar()+
       labs(y = '', x = 'peak count', fill = '', title = plot.title)+
-      theme_bw(base_size = 8)
+      theme_custom
     
   }
   
@@ -666,8 +620,8 @@ if (dir.exists('consensus_beds')){
     )+
       labs(title = tgt)+
       theme(
-        text = element_text(size = 10),
-        plot.margin = unit(rep(0.5, 4), 'line'),
+        text = element_text(size = 12),
+        plot.margin = unit(rep(0.2, 4), 'line'),
         plot.title = element_text(size = 12)
       )
     
@@ -717,11 +671,7 @@ if (dir.exists('consensus_annotation')){
       geom_bar()+
       scale_x_continuous(expand = c(0,0))+
       labs(x = 'Consensus peak count', y = '', title = plot.title)+
-      theme_bw()+
-      theme(
-        text = element_text(size = 8),
-        plot.title = element_text(size = 8)
-      )
+      theme_custom
     
   }
   
