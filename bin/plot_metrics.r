@@ -24,30 +24,16 @@ input.dirs <- c(
   'consensus_annotation',
   'differential_peaks'
 )
-
-theme_custom <- theme_bw()+
-  theme(
-    plot.title = element_text(size = 10),
-    axis.text = element_text(size = 10),
-    axis.title = element_text(size = 10),
-    legend.text = element_text(size = 8),
-    legend.title = element_text(size = 8),
-    axis.text.x = element_text(angle = 90, hjust = 1),
-    strip.text.y = element_text(angle = 0),
-    legend.position = 'top'
-  )
-
   
 dat <- list()
-figs <- list()
-funcs <- list()
 
 ## read sample sheet ####
 ss <- read.csv('sample_sheet.csv')
 targets <- sort(setdiff(unique(ss$target), c('IgG', 'Input', 'input'))) # targets to make QC plots
+sample_groups <- sort(unique(ss$sample_group))
 dat$ss <- ss
 
-## reads dat & figs ####
+## reads dat ####
 {
 ## get read metrics ####
 if (file.exists('read_metrics.csv')){
@@ -57,204 +43,6 @@ if (file.exists('read_metrics.csv')){
       by = 'id'
     )
   meta <- dat$meta # for plotting
-  
-
-  ## input reads ####
-  if ('bt2_total_reads_target' %in% colnames(meta)){
-    qc <- 'seq_depth'
-    
-    funcs[[qc]] <- function(df, tgt, var.x = 'bt2_total_reads_target', var.y = 'sample_group', xlab = 'Total reads (in million)', ylab = '', color = 'Replicate', plot.title = 'Sequenced reads'){
-      require(ggplot2)
-      
-      
-      if (nrow(df) == 0){ 
-        return(
-          ggplot(data.frame(x=0,y=0))+
-            geom_blank()+
-            theme_minimal()
-        ) 
-      }
-      
-      
-      as.data.frame(df) %>% 
-        mutate(sample_replicate = ifelse(is.na(sample_replicate), 1, sample_replicate)) %>% 
-        mutate(x = df[,var.x]/1e6, y = df[,var.y], color = factor(sample_replicate)) %>% 
-        subset(target %in% tgt) %>% 
-        ggplot(mapping = aes(x = x, y = y, color = color))+
-        geom_jitter(height = 0.1, width = 0)+
-        labs(x = xlab, y = ylab, color = color, title = plot.title)+
-        theme_custom
-      
-    }
-    
-    figs[[qc]] <- lapply(c(targets,'IgG'), funcs[[qc]], df = meta)
-    names(figs[[qc]]) <- c(targets,'IgG')
-  }  
-  
-  ## Aligned reads to the target genome ####
-  if ('bt2_total_aligned_target' %in% colnames(meta)){
-    qc <- 'aligned_reads'
-    
-    funcs[[qc]] <- function(df, tgt, var.x = 'bt2_total_aligned_target', var.y = 'sample_group', xlab = 'Aligned reads (in million) ', ylab = '', color = 'Replicate', plot.title = 'Reads aligned to target genome'){
-      require(ggplot2)
-      
-      if (nrow(df) == 0){ 
-        return(
-          ggplot(data.frame(x=0,y=0))+
-            geom_blank()+
-            theme_minimal()
-        ) 
-      }
-      
-      
-      as.data.frame(df) %>% 
-        mutate(sample_replicate = ifelse(is.na(sample_replicate), 1, sample_replicate)) %>% 
-        mutate(x = df[,var.x]/1e6, y = df[,var.y], color = factor(sample_replicate)) %>% 
-        subset(target %in% tgt) %>%
-        ggplot(mapping = aes(x = x, y = y, color = color))+
-        geom_jitter(height = 0.1, width = 0)+
-        labs(
-          x = xlab, y = ylab, 
-          color = color, title = plot.title)+
-        theme_custom
-      
-    }
-    
-    figs[[qc]] <- lapply(c(targets,'IgG'), funcs[[qc]], df = meta)
-    names(figs[[qc]]) <- c(targets,'IgG')
-  }  
-  
-  ## Alignment rate to the target genome ####
-  if ('bt2_overall_alignment_rate_target' %in% colnames(meta)){
-    qc <- 'aligned_pct' 
-    funcs[[qc]] <- function(df, tgt, var.x = 'bt2_overall_alignment_rate_target', var.y = 'sample_group', xlab = 'Fraction of reads aligned', ylab = '', color = 'Replicate', plot.title = 'Alignment rate to target genome'){
-      require(ggplot2)
-      
-      if (nrow(df) == 0){ 
-        return(
-          ggplot(data.frame(x=0,y=0))+
-            geom_blank()+
-            theme_minimal()
-        ) 
-      }
-      
-      
-      as.data.frame(df) %>% 
-        mutate(sample_replicate = ifelse(is.na(sample_replicate), 1, sample_replicate)) %>% 
-        mutate(x = df[,var.x], y = df[,var.y], color = factor(sample_replicate)) %>% 
-        subset(target %in% tgt) %>%
-        ggplot(mapping = aes(x = x, y = y, color = color))+
-        geom_jitter(height = 0.1, width = 0)+
-        labs(
-          x = xlab, y = ylab, 
-          color = color, title = plot.title)+
-        theme_custom
-      
-    }
-    
-    figs[[qc]] <- lapply(c(targets,'IgG'), funcs[[qc]], df = meta)
-    names(figs[[qc]]) <- c(targets,'IgG')
-    
-  }  
-  ## Aligned reads to spike-in genome ####
-  if ('bt2_overall_alignment_rate_spikein' %in% colnames(meta)){
-    qc <- 'aligned_reads_spikein'
-    
-    funcs[[qc]] <- function(df, tgt, var.x = 'bt2_total_aligned_spikein', var.y = 'sample_group', xlab = 'Aligned reads (in thousand)', ylab = '', color = 'Replicate', plot.title = 'Reads aligned to spike-in genome'){
-      require(ggplot2)
-      
-      if (nrow(df) == 0){ 
-        return(
-          ggplot(data.frame(x=0,y=0))+
-            geom_blank()+
-            theme_minimal()
-        ) 
-      }
-      
-      
-      as.data.frame(df) %>% 
-        mutate(sample_replicate = ifelse(is.na(sample_replicate), 1, sample_replicate)) %>% 
-        mutate(x = df[,var.x]/1e3, y = df[,var.y], color = factor(sample_replicate)) %>% 
-        subset(target %in% tgt) %>%
-        ggplot(mapping = aes(x = x, y = y, color = color))+
-        geom_point()+
-        labs(
-          x = xlab, y = ylab, 
-          color = color, title = plot.title)+
-        theme_custom
-      
-    }
-    
-    figs[[qc]] <- lapply(c(targets,'IgG'), funcs[[qc]], df = meta)
-    names(figs[[qc]]) <- c(targets,'IgG')
-  }
-  
-  ## Duplication rate ####
-  if ('dedup_percent_duplication' %in% colnames(meta)){
-    qc <- 'dup_rate'
-    
-    funcs[[qc]] <- function(df, tgt, var.x = 'dedup_percent_duplication', var.y = 'sample_group', xlab = 'Duplication Rate', ylab = '', color = 'Replicate', plot.title = 'Duplication rate'){
-      require(ggplot2)
-      
-      if (nrow(df) == 0){ 
-        return(
-          ggplot(data.frame(x=0,y=0))+
-            geom_blank()+
-            theme_minimal()
-        ) 
-      }
-      
-      
-      as.data.frame(df) %>% 
-        mutate(sample_replicate = ifelse(is.na(sample_replicate), 1, sample_replicate)) %>% 
-        mutate(x = df[,var.x], y = df[,var.y], color = factor(sample_replicate)) %>% 
-        subset(target %in% tgt) %>%
-        ggplot(mapping = aes(x = x, y = y, color = color))+
-        geom_jitter(height = 0.1, width = 0)+
-        labs(
-          x = xlab, y = ylab, 
-          color = color, title = plot.title)+
-        theme_bw()+
-        theme_custom
-    }
-    
-    figs[[qc]] <- lapply(c(targets,'IgG'), funcs[[qc]], df = meta)
-    names(figs[[qc]]) <- c(targets,'IgG')
-    
-  }
-  
-  ## Estimated library size ####
-  if ('dedup_estimated_library_size' %in% colnames(meta)){
-    qc <- 'est_lib_size' 
-    funcs[[qc]] <- function(df, tgt, var.x = 'dedup_estimated_library_size', var.y = 'sample_group', xlab = 'library size (in million)', ylab = '', color = 'Replicate', plot.title = 'Estimated library size'){
-      require(ggplot2)
-      
-      if (nrow(df) == 0){ 
-        return(
-          ggplot(data.frame(x=0,y=0))+
-            geom_blank()+
-            theme_minimal()
-        ) 
-      }
-      
-      
-      as.data.frame(df) %>% 
-        mutate(sample_replicate = ifelse(is.na(sample_replicate), 1, sample_replicate)) %>% 
-        mutate(x = df[,var.x]/1e6, y = df[,var.y], color = factor(sample_replicate)) %>% 
-        subset(target %in% tgt) %>%
-        ggplot(mapping = aes(x = x, y = y, color = color))+
-        geom_jitter(height = 0.1, width = 0)+
-        labs(
-          x = xlab, y = ylab,
-          color = color, title = plot.title)+
-        theme_custom
-    }
-    
-    figs[[qc]] <- lapply(c(targets,'IgG'), funcs[[qc]], df = meta)
-    names(figs[[qc]]) <- c(targets,'IgG')
-  }  
-  
-  
   
 }
 
@@ -276,46 +64,13 @@ if (dir.exists('fragment_lengths')){
       dat$meta %>% dplyr::select(id,sample_group, target, sample_replicate),
       by = 'id'
     )
-  funcs[['frag_lens_dens']] <- function(df, tgt, var.x = 'length', var.y = 'count', var.group = 'id', facet.row = 'sample_group', xlab = 'Fragment length (bp)', ylab = 'Occurrences', color = 'Replicate', plot.title = 'Fragment length'){
-    require(ggplot2)
-    
-    if (nrow(df) == 0){ 
-      return(
-        ggplot(data.frame(x=0,y=0))+
-          geom_blank()+
-          theme_minimal()
-      ) 
-    }
-    
-    
-    df <- as.data.frame(df)
-    p <- df %>%
-      mutate(x = df[,var.x], y = df[,var.y], group = df[,var.group], color = factor(sample_replicate), facet.row = df[,facet.row]) %>%
-      subset(target %in% tgt) %>%
-      ggplot(mapping = aes(x=x, y=y, group = group, color = color))+
-      geom_line(size=0.5)+
-      labs(x=xlab, y=ylab, color=color, title = plot.title)+
-      theme_custom
-    
-    if (length(unique(df$sample_group)) > 1){
-      p+ 
-        facet_grid(facet.row ~ .)
-    }else{
-      p
-    }
-  }
-  
-  
-  figs[['frag_lens_dens']] <- lapply(
-    c(targets, 'IgG'), funcs[['frag_lens_dens']], df = dat$frag_lens
-  ); names(figs[['frag_lens_dens']]) <- c(targets, 'IgG')
   
 }
   
   
 }
 
-## peaks dat & figs ####
+## peaks dat ####
 {
 ## get metrics of the entire set of original peaks ####
 if (dir.exists('original_peaks')){
@@ -337,39 +92,6 @@ if (dir.exists('original_peaks')){
       )
   }
   
-  qc <- 'count_peaks' 
-  funcs[[qc]] <- function(df, tgt, var.x = 'npeak', var.y = 'sample_group', var.color = 'toIgG', add_facet = facet_grid(~caller, scales = 'free'), var.shape = 'filtered', xlab = 'Total Peaks (in thousand)', ylab = '', scale_color = scale_color_manual('', values = c("IgG_controlled"="indianred", "Target_only"="steelblue")), shape = '', plot.title = 'Peaks from each sample'){
-    require(ggplot2)
-    
-    if (nrow(df) == 0){ 
-      return(
-        ggplot(data.frame(x=0,y=0))+
-          geom_blank()+
-          theme_minimal()
-      ) 
-    }
-    
-    
-    df <- as.data.frame(df) %>% 
-      mutate(sample_replicate = ifelse(is.na(sample_replicate), 1, sample_replicate))
-    df %>% 
-      mutate(x = df[,var.x]/1e3, y = df[,var.y], color = df[,var.color], shape = df[,var.shape]) %>% 
-      subset(target %in% tgt) %>%
-      ggplot(mapping = aes(x = x, y = y, color = color, shape = shape))+
-      geom_jitter(height = 0.1, width = 0)+
-      add_facet+
-      scale_color+
-      scale_shape_manual(values = c(filtered=19, unfiltered=1))+
-      labs(
-        x = xlab, y = ylab, 
-        shape = shape, title = plot.title)+
-      theme_custom
-  }
-  
-  df <- dat$npeaks 
-  
-  figs[[qc]] <- lapply(targets, funcs[[qc]], df = df, var.y = 'id')
-  names(figs[[qc]]) <- targets
   
 }
 
@@ -394,48 +116,6 @@ if (dir.exists('original_peak_widths')){
       )
   }
   
-  qc <- 'peak_width'
-  
-  funcs[[qc]] <- function(df, tgt, var.x = 'length', var.y = 'id', var.color = 'caller', xlab = 'Peak Width (bp)', ylab = '', scale_color = scale_color_manual('', values = c(SEACR='darkblue', MACS2narrow='red', MACS2broad='brown')), plot.title = 'Peak width'){
-    require(ggplot2)
-    
-    if (nrow(df) == 0){ 
-      return(
-        ggplot(data.frame(x=0,y=0))+
-          geom_blank()+
-          theme_minimal()
-      ) 
-    }
-    
-    ## determine data range
-    length.max <- as.data.frame(df) %>% 
-      subset(target %in% tgt) %>% 
-      group_by(sample_group, caller) %>% 
-      reframe(
-        qt = quantile(length, 0.75)
-      ) %>% 
-      reframe(
-        max = max(qt)
-      ) %>% 
-      as.matrix() %>% 
-      as.vector()
-    
-    ## make plots
-    as.data.frame(df) %>% 
-      mutate(x = .[,var.x], y = .[,var.y], color = .[,var.color]) %>% 
-      subset(target %in% tgt) %>%
-      ggplot(mapping = aes(x = x, y = y, color = color, weight = weight))+
-      geom_violin(bw=5, trim = T, draw_quantiles = 0.5, orientation = 'y')+
-      scale_color+
-      coord_cartesian(xlim = c(0, length.max))+
-      labs(x=xlab, y=ylab, title = plot.title)+
-      theme_custom
-  }
-  
-  df <- dat$wpeaks 
-  
-  figs[[qc]] <- lapply(targets, funcs[[qc]], df = df)
-  names(figs[[qc]]) <- targets
   
 }
 ## get reads in peak ####
@@ -466,48 +146,12 @@ if (dir.exists('reads_in_peak')){
       filtered = ifelse(grepl('filtered', file),'filtered','unfiltered')
     )
   
-  qc <- 'peak_frip'
-  
-  funcs[[qc]] <- function(df, tgt, var.x = 'FRiP', var.y = 'id', var.color = 'caller', var.shape = 'filtered', add_facet = NULL, xlab = 'Fraction of reads in peak', ylab = '', scale_color = scale_color_manual('', values = c(SEACR='darkblue', MACS2narrow='red', MACS2broad='brown')), scale_shape = scale_shape_manual('', values = c(filtered = 1, unfiltered = 2)), plot.title = 'Fraction of reads in peak'){
-    require(ggplot2)
-    
-    if (nrow(df) == 0){ 
-      return(
-        ggplot(data.frame(x=0,y=0))+
-          geom_blank()+
-          theme_minimal()
-      ) 
-    }
-    
-    
-    as.data.frame(df) %>% 
-      mutate(x = .[,var.x], y = .[,var.y], color = .[,var.color], shape = .[,var.shape]) %>% 
-      subset(target %in% tgt) %>%
-      ggplot(mapping = aes(x = x, y = y, color = color, shape = shape))+
-      geom_jitter(height = 0.1, width = 0)+
-      add_facet+
-      scale_color+
-      scale_shape+
-      labs(
-        x = xlab, y = ylab, 
-        title = plot.title
-      )+
-      theme_custom
-    
-    
-  }
-  
-  df <- dat$frip
-  
-  figs[[qc]] <- lapply(targets, funcs[[qc]], df = df)
-  names(figs[[qc]]) <- targets
-  
 }
 
 
 }
 
-## conp dat & figs ####
+## conp dat ####
 {
 ## get metrics of replicated peaks ####
 if (dir.exists('replicated_peaks')){
@@ -534,13 +178,28 @@ if (dir.exists('consensus_peaks')){
 ## get consenus peaks ####
 if (dir.exists('consensus_beds')){
   conp.bed <- list.files('consensus_beds/', full.names = T, pattern = '.bed')
-  
+
+  ## Compare consensus peaks across sample groups ####  
   conps <- lapply(
     conp.bed, function(fname){
       read.delim(fname, header = F, col.names = c('chrom', 'start', 'end', 'conp.id','sample.groups', 'npeak'))
     }
   ); names(conps) <- basename(conp.bed)
   
+  dat$rep2conp <- lapply(
+    conps, function(pk){
+      mtx <- t(sapply(
+        strsplit(pk$sample.groups, split = ','),
+        function(v){
+          as.integer(sample_groups %in% v)
+        }
+      ))
+      dimnames(mtx) <- list(pk$conp.id, sample_groups)
+      return(mtx)
+    }
+  )
+  
+  ## Compare MACS2 and SEACR by consensus peaks ####
   conps.gr <- lapply(
     conps, function(x){
       if(nrow(x)>0){
@@ -549,93 +208,33 @@ if (dir.exists('consensus_beds')){
     }
   )
   
-  ## make plots
-  ## compare consensus peaks across sample groups ####
-  qc <- 'rep2conp'
-  
-  funcs[[qc]] <- function(df, plot.title){
-    
-    if (nrow(df) == 0){ 
-      return(
-        ggplot(data.frame(x=0,y=0))+
-          geom_blank()+
-          theme_minimal()
-      ) 
-    }
-    
-    
-    df <- df %>% 
-      mutate(
-        shared = ifelse(grepl(',', sample.groups), 'shared', 'unique')
-      ) %>% 
-      rowwise() %>% 
-      reframe(
-        conp.id = conp.id,
-        shared = shared,
-        sample.group = unlist(strsplit(sample.groups, split = ','))
-      )
-    
-    df %>% 
-      ggplot(aes(y = sample.group, fill = factor(shared, levels = c('unique', 'shared'))))+
-      geom_bar()+
-      labs(y = '', x = 'peak count', fill = '', title = plot.title)+
-      theme_custom
-    
-  }
-  
-  figs[[qc]] <- lapply(
-    paste(rep(targets, each = 3), c('macs2_narrow_peaks.bed', 'macs2_broad_peaks.bed', 'seacr_peaks.bed'), sep = '.'),
+  dat$seacr2macs <- lapply(
+    split(names(conps.gr), gsub('.macs2_.*|.seacr_.*', '', names(conps.gr))),
     function(i){
-      if (i %in% names(conps)){
-        funcs[[qc]](conps[[i]], i)
-      }else{
-        plot_spacer()
+      require(GenomicRanges)
+      peak.list <- conps.gr[i]
+      
+      if(length(peak.list) == 1){return(NULL)} # only one peak set is available
+      
+      peak.list[sapply(peak.list, length) == 0] <- NULL
+      
+      if(length(peak.list) < 2){return(NULL)} # less than two peak sets are available
+      
+      tgt <- gsub('.macs2_.*|.seacr_.*', '', i[1])
+      
+      conp <- GRanges()
+      for (pk in peak.list){
+        conp <- c(conp, pk)
       }
-    }
-  )
-  
-  ## Compare MACS2 and SEACR by consensus peaks ####
-  qc <- 'seacr2macs'
-  
-  funcs[[qc]] <- function(peak.list){
-    require(GenomicRanges)
-    
-    tgt <- gsub('.macs2_.*|.seacr_.*', '', names(peak.list)[1])
-    
-    if(sum(sapply(peak.list, length)>0) < 2){return(NULL)} # only one peak set is available
-    
-    peak.list <- peak.list[sapply(peak.list, length)>0]
-    
-    conp <- GRanges()
-    for (pk in peak.list){
-      conp <- c(conp, pk)
-    }
-    conp <- reduce(conp)
-    
-    overlap2conp <- as.data.frame(sapply(
-      peak.list, function(pk){countOverlaps(conp, pk)>0}
-    ))
-    colnames(overlap2conp) <- gsub('_peaks', '', stringr::str_extract(colnames(overlap2conp), "macs.*peaks|seacr.*peaks"))
-    
-    venn::venn(
-      overlap2conp,
-      ggplot = T,
-      box = F
-    )+
-      labs(title = tgt)+
-      theme(
-        text = element_text(size = 12),
-        plot.margin = unit(rep(0.2, 4), 'line'),
-        plot.title = element_text(size = 12)
-      )
-    
-  }
-  
-  figs[[qc]] <- lapply(
-    split(conps.gr, gsub('.macs2_.*|.seacr_.*', '', names(conps.gr))),
-    funcs[[qc]]
-  )
-  
+      conp <- reduce(conp)
+      
+      overlap2conp <- as.data.frame(sapply(
+        peak.list, function(pk){countOverlaps(conp, pk)>0}
+      ))
+      colnames(overlap2conp) <- gsub('_peaks', '', stringr::str_extract(colnames(overlap2conp), "macs.*peaks|seacr.*peaks"))
+      
+      return(overlap2conp)
+    })
   
 }
 
@@ -648,48 +247,20 @@ if (dir.exists('consensus_annotation')){
     read.delim(fname, header = T) %>%   
       subset(!is.na(Annotation)) %>% 
       mutate(
+        conp.id = .[,1],
         genomic.location = gsub(' .*', '', Annotation)
-      ) 
+      ) %>% 
+      dplyr::select(conp.id, genomic.location)
     
   }); names(dat$conp_ann) <- gsub('.annotation.txt','',basename(ann.txt))
   
-  
-  qc <- 'conp_ann'
-  funcs[[qc]] <- function(df, plot.title = NULL){
-    require(dplyr)
-    require(ggplot2)
-    
-    if (nrow(df) == 0){ 
-      return(
-        ggplot(data.frame(x=0,y=0))+
-          geom_blank()+
-          theme_minimal()
-      ) 
-    }
-    
-    
-    df %>% 
-      ggplot(
-        aes(y = genomic.location)
-      )+
-      geom_bar()+
-      scale_x_continuous(expand = c(0,0))+
-      labs(x = 'Consensus peak count', y = '', title = plot.title)+
-      theme_custom
-    
-  }
-  
-  figs[[qc]] <- mapply(funcs[[qc]], dat$conp_ann, names(dat$conp_ann), SIMPLIFY = F)
-  names(figs[[qc]]) <- names(dat$conp_ann)
 }
 
 
 }
 
 ## Save results ####
-saveRDS(figs, 'figs.rds')
 saveRDS(dat, 'data.rds')
-saveRDS(funcs, 'funcs.rds')
 
 ## cat dp.rds ####
 if (dir.exists('differential_peaks')){
