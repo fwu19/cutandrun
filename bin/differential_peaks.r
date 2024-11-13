@@ -467,6 +467,10 @@ wrapper_one_conp <- function(ss, cmp, tgt, conp.bed, count.txts, fdr = 0.05, lfc
         samples = ssi
     )
     
+    ## filter out irrelevant comparisons ####
+    cmp <- cmp %>% 
+        filter(test %in% y0$samples$sample_group & control %in% y0$samples$sample_group)
+    
     ## run DGE ####
     dp <- mapply(
         run_one_comparison, 
