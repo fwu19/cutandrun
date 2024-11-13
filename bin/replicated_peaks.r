@@ -5,6 +5,7 @@
 
 options(stringsAsFactors = F)
 options(scipen = 99)
+options(warn = -1)
 library(dplyr)
 library(GenomicRanges)
 
@@ -19,28 +20,29 @@ merge_reps <- function(peak.list, min.reps = 2){
 
   if(sum(k) == 0){return(NULL)}
   
+  peak.list[!k] <- NULL
   lst <- list()
-  if(sum(k) > 1){ # more than 2 replicates
+  if (length(peak.list) == 1 ){ # only 1 replicate
+    lst$replicated <- GRanges()
+    lst$singleton <- peak.list[[1]]
+    
+  }else { # more than 2 replicates
     conp <- GRanges()
     
-    for (pk in peak.list[k]){
+    for (pk in peak.list){
       conp <- c(conp, pk)
     }
     
     conp <- reduce(conp)
     
-    keep.conp <- rowSums(as.matrix(sapply(peak.list[k], function(pk){countOverlaps(conp,pk)}))>0) >= min.reps # peaks shared by at least this number of replicates
+    keep.conp <- rowSums(as.matrix(sapply(peak.list, function(pk){countOverlaps(conp,pk)}))>0) >= min.reps # peaks shared by at least this number of replicates
     
     if(sum(keep.conp) > 0){
-      lst$replicated <- conp[keep.conp]
+      lst$replicated <- conp[which(keep.conp)]
     }else{
       lst$replicated <- GRanges()
     }
     lst$singleton <- GRanges()
-  }else if (sum(k) == 1 ){ # only 1 replicate
-    lst$replicated <- GRanges()
-    lst$singleton <- peak.list[k][[1]]
-    
   }
   
   return(lst)
