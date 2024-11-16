@@ -1,5 +1,5 @@
 process GENERATE_REPORT {
-    module = ['fhR/4.1.2-foss-2021b']
+    module = ['fhR/4.1.2-foss-2021b', 'Pandoc/2.13']
 
     label "process_single"
 
