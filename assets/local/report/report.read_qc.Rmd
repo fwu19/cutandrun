@@ -16,8 +16,8 @@
 
 **G. Fragment length** - fragment length estimated based on paired-end sequencing.  
 
-```{r read_plots, results='asis', fig.width=fig.read.width, fig.height=fig.read.height}
-qc_read <- c("seq_depth", "aligned_reads", "aligned_pct", "aligned_reads_spikein", "dup_rate", "est_lib_size", "frag_lens_dens")
+```{r results='asis', fig.dim=dim.read }
+qc_read <- c("seq_depth", "aligned_reads", "aligned_pct", "aligned_reads_spikein", "dup_rate", "est_lib_size", "frag_lens")
 if (length(qc_read) == 0){
   cat('No plots were found!')
   quit()

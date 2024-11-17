@@ -1,3 +1,4 @@
+
 ## Deliverables
 
 **Note**\n
@@ -19,6 +20,8 @@ Mapped reads to the target genome are processed by GATK MarkDuplicates to mark d
 $$\\[0.1in]$$
 
 #### [03_peak_calling/](./03_peak_calling/)
+
+To generate group peaks and consensus peaks, peaks files named with \*.filtered.\* will be used if available, or target-only peaks in files named with \*noigg\* will be used, which are referred to as the final set of peaks from a sample.
 
 -   macs2_broad/
 
@@ -55,7 +58,7 @@ SEACR peaks called with deduplicated IgG reads
 
 $$\\[0.1in]$$
 
-#### [04_reporting](./04_reporting/)
+#### [04_reporting/](./04_reporting/)
 multiqc/ contains MultiQC report of various metrics.
 
 $$\\[0.1in]$$
@@ -73,25 +76,30 @@ $$\\[0.1in]$$
 $$\\[0.1in]$$
 
 
-#### [06_replicated_peaks/](./06_replicated_peaks/)
+#### [06_peaks_by_group/](./06_peaks_by_group/)
 
-The final set of peaks from each replicate were pooled and merged into a set of non-overlapping peaks.
-Peaks only present in one replicate were excluded\
-*group.macs2_narrow_peaks.bed* -- replicated MACS2 narrow peaks \
-*group.macs2_broad_peaks.bed* -- replicated MACS2 broad peaks\
-*group.seacr_peaks.bed* -- replicated SEACR peaks\
+The final set of peaks from all replicates in the group were pooled and merged into a set of non-overlapping peaks.
+
+*multiple_replicates/* -- Peaks present in at least 2 replicates. \
+*single_replicate/* -- if only one replicate has peaks or only one replicate is present in the dataset, the same peak file from 03_peak_calling/ is copied here and renamed accordingly.
+
+Files are named as below. `group` = [sample group]_[target] \
+*group.macs2_narrow_peaks.bed* -- MACS2 narrow peaks \
+*group.macs2_broad_peaks.bed* -- MACS2 broad peaks\
+*group.seacr_peaks.bed* -- SEACR peaks\
 
 $$\\[0.1in]$$
 
-#### [07_consensus_peaks/](./07_consensus_peaks/)
+#### [07_consensus_peaks_by_target/](./07_consensus_peaks_by_target/)
 
-Consensus peaks for each target by merging overlapping replicated peaks across sample groups.\
+Consensus peaks for each target by merging overlapping group peaks across sample groups.\
 \
 *[target].macs2_narrow_peaks.bed* -- consensus MACS2 narrow peaks \
-*[target].macs2_broad_peaks.bed* -- consensus MACS2 broad peaks\
-*[target].seacr_peaks.bed\* -- consensus SEACR peaks\
+*[target].macs2_broad_peaks.bed* -- consensus MACS2 broad peaks \
+*[target].seacr_peaks.bed* -- consensus SEACR peaks \
+
 _annotation/ -- HOMER annotation of consensus peaks.\
-_annotation/_gtf/ -- GTF file used to run HOMER peak annotation.
+_annotation/_gtf/ -- GTF file used to run HOMER peak annotation. \
 
 
 $$\\[0.1in]$$
@@ -115,4 +123,5 @@ $$\\[0.1in]$$
 ## {.unnumbered .unlisted}
 
 $$\\[0.5in]$$
+
 

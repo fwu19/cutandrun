@@ -1,3 +1,5 @@
+
+
 ## {.unnumbered .unlisted}
 
 $$\\[0.5in]$$
@@ -29,25 +31,26 @@ $$\\[0.2in]$$
 
 ### DP plots {.tabset .tabset-pills}
 
-```{r display_plots, results='asis', fig.cap=c('Fig. Differential expression analysis. (A) PCA plot. (B) MA/MD plot. (C) Volcano plot'), fig.width=12, fig.height=4}
-if (exists('dp.list')){
+```{r results='asis', fig.cap=c('Fig. Differential expression analysis. (A) PCA plot. (B) MA/MD plot. (C) Volcano plot'), fig.width=12, fig.height=5}
+if (exists('dp_plots')){
 for (tgt in targets){
   cat ('####', tgt, '{.tabset .tabset-pills}\n\n') # target level
   
-  cnp <- grep(tgt, names(dp.list), value = T)
+  cnp <- grep(tgt, names(dp_plots), value = T)
   
-  for (i in cnp){
-    cat ('#####', i, '{.tabset .tabset-pills}\n\n') # conp level
-    dp <- dp.list[[i]]
-    dp[sapply(dp, is.null)] <- NULL
-    for (j in 1:length(dp)){
-      plist <- dp[[j]]$plots
-      p <- wrap_plots(plist, nrow = 1) + plot_annotation(tag_levels = 'A')
-      
-      make_tabs(
-        paste("######", names(dp)[j]),
-        list(p)
-      )
+  if (length(cnp) > 0){
+    for (i in cnp){ # conp level
+      cat ('#####', i, '{.tabset .tabset-pills}\n\n') 
+      cnp_dp <- dp_plots[[i]] 
+      cnp_dp[sapply(cnp_dp, is.null)] <- NULL
+      for (j in 1:length(cnp_dp)){ # cmp level
+        p <- wrap_plots(cnp_dp[[j]], nrow = 1) + plot_annotation(tag_levels = 'A')
+        
+        make_tabs(
+          paste("######", names(cnp_dp)[j]),
+          list(p)
+        )
+      }
     }
   }
 }
@@ -58,4 +61,5 @@ for (tgt in targets){
 ## {.unnumbered .unlisted}
 
 $$\\[0.5in]$$
+
 
