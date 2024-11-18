@@ -11,8 +11,8 @@ include { MACS2_CALLPEAK as MACS2_CALLPEAK_NOIGG_BROAD                  } from "
 include { BEDTOOLS_INTERSECT as SEACR_PEAKS_BEDTOOLS_INTERSECT          } from "../../modules/nf-core/bedtools/intersect/main"
 include { BEDTOOLS_INTERSECT as MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT   } from "../../modules/nf-core/bedtools/intersect/main"
 include { BEDTOOLS_INTERSECT as MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT    } from "../../modules/nf-core/bedtools/intersect/main"
-include { AWK as MACS2_PEAKS_NARROW_AWK                                        } from "../../modules/local2/awk"
-include { AWK as MACS2_PEAKS_BROAD_AWK                                        } from "../../modules/local2/awk"
+include { FILTER_PEAKS as MACS2_PEAKS_NARROW_FILTER                                        } from "../../modules/local2/filter_peaks"
+include { FILTER_PEAKS as MACS2_PEAKS_BROAD_FILTER                                        } from "../../modules/local2/filter_peaks"
 
 
 workflow CALL_PEAKS {
@@ -231,11 +231,11 @@ workflow CALL_PEAKS {
     // EXAMPLE CHANNEL STRUCT: [[META], BED]
     //MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.intersect | view
 
-    MACS2_PEAKS_NARROW_AWK(
+    MACS2_PEAKS_NARROW_FILTER(
         ch_macs2_peaks_narrow_filtered.ifEmpty([])
     )
-    ch_macs2_peaks_narrow_filtered =  MACS2_PEAKS_NARROW_AWK.out.file
-    ch_versions = ch_versions.mix(MACS2_PEAKS_NARROW_AWK.out.versions)
+    ch_macs2_peaks_narrow_filtered =  MACS2_PEAKS_NARROW_FILTER.out.file
+    ch_versions = ch_versions.mix(MACS2_PEAKS_NARROW_FILTER.out.versions)
 
     /*
     * CHANNEL: pair igg and noigg MACS2 broad peaks
@@ -252,11 +252,11 @@ workflow CALL_PEAKS {
     // EXAMPLE CHANNEL STRUCT: [[META], BED]
     //MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.intersect | view
 
-    MACS2_PEAKS_BROAD_AWK(
+    MACS2_PEAKS_BROAD_FILTER(
         ch_macs2_peaks_broad_filtered.ifEmpty([])
     )
-    ch_macs2_peaks_broad_filtered =  MACS2_PEAKS_BROAD_AWK.out.file
-    ch_versions = ch_versions.mix(MACS2_PEAKS_BROAD_AWK.out.versions)
+    ch_macs2_peaks_broad_filtered =  MACS2_PEAKS_BROAD_FILTER.out.file
+    ch_versions = ch_versions.mix(MACS2_PEAKS_BROAD_FILTER.out.versions)
 
 
     ch_macs2_peaks_narrow_filtered
