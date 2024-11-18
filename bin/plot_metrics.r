@@ -186,18 +186,28 @@ if (dir.exists('consensus_beds')){
     }
   ); names(conps) <- basename(conp.bed)
   
-  dat$rep2conp <- lapply(
-    conps, function(pk){
-      mtx <- as.matrix(t(sapply(
-        strsplit(pk$sample.groups, split = ','),
-        function(v){
-          as.integer(sample_groups %in% v)
-        }
-      )))
-      dimnames(mtx) <- list(pk$conp.id, sample_groups)
-      return(mtx)
-    }
-  )
+  if(length(sample_groups)==1){
+    dat$rep2conp <- lapply(
+      conps, function(pk){
+        mtx <- matrix(rep(1, length(pk)), ncol = 1)
+        dimnames(mtx) <- list(pk$conp.id, sample_groups)
+      }
+    )
+  }else{
+    dat$rep2conp <- lapply(
+      conps, function(pk){
+        mtx <- t(sapply(
+          strsplit(pk$sample.groups, split = ','),
+          function(v){
+            as.integer(sample_groups %in% v)
+          }
+        ))
+        dimnames(mtx) <- list(pk$conp.id, sample_groups)
+        return(mtx)
+      }
+    )
+    
+  }
   
   ## Compare MACS2 and SEACR by consensus peaks ####
   conps.gr <- lapply(
