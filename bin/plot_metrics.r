@@ -189,8 +189,9 @@ if (dir.exists('consensus_beds')){
   if(length(sample_groups)==1){
     dat$rep2conp <- lapply(
       conps, function(pk){
-        mtx <- matrix(rep(1, length(pk)), ncol = 1)
-        dimnames(mtx) <- list(pk$conp.id, sample_groups)
+        mtx <- matrix(rep(1, nrow(pk)), ncol = 1)
+        rownames(mtx) <- pk$conp.id
+        colnames(mtx) <- sample_groups
         return(mtx)
       }
     )
