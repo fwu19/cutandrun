@@ -188,12 +188,12 @@ if (dir.exists('consensus_beds')){
   
   dat$rep2conp <- lapply(
     conps, function(pk){
-      mtx <- t(sapply(
+      mtx <- as.matrix(t(sapply(
         strsplit(pk$sample.groups, split = ','),
         function(v){
           as.integer(sample_groups %in% v)
         }
-      ))
+      )))
       dimnames(mtx) <- list(pk$conp.id, sample_groups)
       return(mtx)
     }
