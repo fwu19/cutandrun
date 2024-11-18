@@ -24,7 +24,7 @@ process GENERATE_REPORT {
 
     script:
     """
-    plot_metrics.r
+    prepare_report.r
     render_report.r report.Rmd
     mv report.html _Analysis_report.html
     """
