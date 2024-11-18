@@ -10,11 +10,7 @@ add_metadata <- function(ss, meta_csv){
     ## update with metadata if provided
     # metadata contains a required columns id and optional columns: sample_group, sample_replicate, target, control, call_peak, call_rep_peak, call_con_peak
     
-    if (grepl('dummy', meta_csv)){
-        return(ss)
-    }
-    
-    if (file_test('-f', meta_csv) & grepl('.csv$', meta_csv)){
+    if (file_test('-f', meta_csv) & grepl('.csv$', meta_csv) & !grepl('dummy', meta_csv)){
         meta <- read.csv(meta_csv)
         ss <- ss %>% 
             inner_join(
@@ -22,6 +18,33 @@ add_metadata <- function(ss, meta_csv){
             ) %>% 
             dplyr::select(!ends_with(".x")) 
     }
+    
+    ## add missing columns
+    ss <- ss %>% 
+        mutate(
+            sample_group = ifelse(is.null(sample_group), id, sample_group),
+            target = ifelse(is.null(target), "", target),
+            control = ifelse(is.null(control), "", control),
+            group = paste(sample_group, target, sep = '_'), # to be compatible with nf-core
+            replicate = sample_replicate, # to be compatible with nf-core
+            call_peak = ifelse(is.null(call_peak), 'true', call_peak),
+            call_rep_peak = ifelse(is.null(call_rep_peak), 'true', call_rep_peak),
+            call_con_peak = ifelse(is.null(call_con_peak), 'true', call_con_peak)
+        )
+    
+    ## identify controls and modify accordingly
+    controls <- unique(ss$control)
+    ss <- ss %>% 
+        mutate(
+            control = ifelse(is.na(control), "", control), # convert NA to ""
+            is_control = ifelse(id %in% controls, 'true', 'false'),
+            control_group = ifelse(is_control, id, control),
+            call_peak = ifelse(is_control == 'true', 'false', call_peak),
+            call_rep_peak = ifelse(is_control == 'true', 'false', call_rep_peak),
+            call_con_peak = ifelse(is_control == 'true', 'false', call_rep_peak)
+        ) %>%
+        dplyr::relocate(id, group, replicate, single_end, is_control, control_group, control, fastq_1, fastq_2, target, sample_group, sample_replicate, call_peak, call_rep_peak, call_con_peak)
+    
     
     return(ss)
     
@@ -52,21 +75,6 @@ ss$single_end <- ifelse(ss$fastq_2 == "", 'true', 'false')
 ## add metadata if available
 ss <- add_metadata(ss, meta_csv)
 
-## identify controls
-controls <- unique(ss$control)
-ss <- ss %>% 
-    mutate(
-        group = paste(sample_group, target, sep = '_'), # to be compatible with nf-core
-        replicate = sample_replicate, # to be compatible with nf-core
-        control = ifelse(is.na(control), "", control), # convert NA to ""
-        is_control = ifelse(id %in% controls, 'true', 'false'),
-        control_group = ifelse(is_control, id, control),
-        call_peak = ifelse(is_control == 'true', 'false', call_peak),
-        call_rep_peak = ifelse(is_control == 'true', 'false', call_rep_peak),
-        call_con_peak = ifelse(is_control == 'true', 'false', call_rep_peak)
-    ) %>%
-    dplyr::relocate(id, group, replicate, single_end, is_control, control_group, control, fastq_1, fastq_2, target, sample_group, sample_replicate, call_peak, call_rep_peak, call_con_peak)
- 
 ## write sample sheet ####
 ss %>% 
     write.table(out_csv, sep = ',', quote = F, row.names = F)
