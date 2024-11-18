@@ -6,6 +6,13 @@ options(stringsAsFactors = F)
 library(dplyr)
 
 ## functions ####
+add_col <- function(df, col, default.value){
+    if(!col %in% colnames(df)){
+        df[,col] <- default.value
+    }
+    return(df[,col])
+}
+
 add_metadata <- function(ss, meta_csv){
     ## update with metadata if provided
     # metadata contains a required columns id and optional columns: sample_group, sample_replicate, target, control, call_peak, call_rep_peak, call_con_peak
@@ -20,16 +27,18 @@ add_metadata <- function(ss, meta_csv){
     }
     
     ## add missing columns
+    ss$sample_group <- add_col(ss, 'sample_group', ss$id)
+    ss$target <- add_col(ss, 'target', "")
+    ss$sample_replicate <- add_col(ss, 'sample_replicate', 1)
+    ss$control <- add_col(ss, 'control', "")
+    ss$call_peak <- add_col(ss, 'call_peak', 'true')
+    ss$call_rep_peak <- add_col(ss, 'call_rep_peak', 'true')
+    ss$call_con_peak <- add_col(ss, 'call_con_peak', 'true')
+    
     ss <- ss %>% 
         mutate(
-            sample_group = ifelse(is.null(sample_group), id, sample_group),
-            target = ifelse(is.null(target), "", target),
-            control = ifelse(is.null(control), "", control),
             group = paste(sample_group, target, sep = '_'), # to be compatible with nf-core
-            replicate = sample_replicate, # to be compatible with nf-core
-            call_peak = ifelse(is.null(call_peak), 'true', call_peak),
-            call_rep_peak = ifelse(is.null(call_rep_peak), 'true', call_rep_peak),
-            call_con_peak = ifelse(is.null(call_con_peak), 'true', call_con_peak)
+            replicate = sample_replicate
         )
     
     ## identify controls and modify accordingly
@@ -38,7 +47,7 @@ add_metadata <- function(ss, meta_csv){
         mutate(
             control = ifelse(is.na(control), "", control), # convert NA to ""
             is_control = ifelse(id %in% controls, 'true', 'false'),
-            control_group = ifelse(is_control, id, control),
+            control_group = ifelse(is_control == 'true', id, control),
             call_peak = ifelse(is_control == 'true', 'false', call_peak),
             call_rep_peak = ifelse(is_control == 'true', 'false', call_rep_peak),
             call_con_peak = ifelse(is_control == 'true', 'false', call_rep_peak)
@@ -69,7 +78,7 @@ if (!'id' %in% colnames(ss)){
 }else if ( ! 'fastq_2' %in% colnames(ss)){
     ss$fastq_2 <- ''
 }
-ss$fastq_2 <- ifelse(is.na(ss$fastq_2), "", ss$fastq_2)
+ss$fastq_2 <- add_col(ss, 'fastq_2', "")
 ss$single_end <- ifelse(ss$fastq_2 == "", 'true', 'false')
 
 ## add metadata if available
