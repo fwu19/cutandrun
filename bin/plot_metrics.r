@@ -191,6 +191,7 @@ if (dir.exists('consensus_beds')){
       conps, function(pk){
         mtx <- matrix(rep(1, length(pk)), ncol = 1)
         dimnames(mtx) <- list(pk$conp.id, sample_groups)
+        return(mtx)
       }
     )
   }else{
