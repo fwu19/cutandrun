@@ -13,7 +13,7 @@ process REPLICATED_PEAKS {
     output:
     tuple val(target), path ( "*.csv" ), emit: csv, optional: true
     tuple val(target), path ( "*.rds" ), emit: rds, optional: true
-    tuple val(target), path ( "{replicated,singleton}/*.bed" ), emit: bed, optional: true
+    tuple val(target), path ( "{multiple_replicates,single_replicate}/*.bed" ), emit: bed, optional: true
 
     script:
     """

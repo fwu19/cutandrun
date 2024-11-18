@@ -103,7 +103,11 @@ nreps <- bind_rows(mapply(
       reps, names(reps), SIMPLIFY = F
     )) %>% 
   mutate(
-    group = group.id
+    group = group.id,
+    output_file = paste(
+      group.id, 
+      plyr::mapvalues(caller, from = c('MACS2broad', 'MACS2narrow', 'SEACR'), to = c('macs2_broad_peaks.bed', 'macs2_narrow_peaks.bed', 'seacr_peaks.bed')), 
+      sep = '.')
   ) %>% 
   left_join(
     npeaks %>% 
@@ -114,6 +118,9 @@ nreps <- bind_rows(mapply(
       ) %>% 
       dplyr::select(caller, ids),
     by = 'caller'
+  ) %>% 
+  mutate(
+   output_file = paste(ifelse(peak.count > 0, 'multiple_replicates', 'single_replicate'), output_file, sep = '/') 
   )
 
 
@@ -132,7 +139,7 @@ rep.files <- paste(
     )
 
 ## replicated peaks
-od <- 'replicated'
+od <- 'multiple_replicates'
 if (!dir.exists(od)){dir.create(od, recursive = T)}
 mapply(
   function(lst, fname){
@@ -149,7 +156,7 @@ mapply(
 )       
 
 ## singleton
-od <- 'singleton'
+od <- 'single_replicate'
 if (!dir.exists(od)){dir.create(od, recursive = T)}
 mapply(
   function(lst, fname){
