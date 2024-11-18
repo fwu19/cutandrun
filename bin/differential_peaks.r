@@ -470,7 +470,7 @@ wrapper_one_conp <- function(ss, cmp, tgt, conp.bed, count.txts, fdr = 0.05, lfc
     ## filter out irrelevant comparisons ####
     cmp <- cmp %>% 
         filter(test %in% y0$samples$sample_group & control %in% y0$samples$sample_group)
-    if (nrow(cmp) ==0){ return(NULL)}
+    if (nrow(cmp) == 0){ return(NULL) }
     
     ## run DGE ####
     dp <- mapply(
@@ -483,7 +483,10 @@ wrapper_one_conp <- function(ss, cmp, tgt, conp.bed, count.txts, fdr = 0.05, lfc
         SIMPLIFY = F)
     names(dp) <- paste(cmp$test, cmp$control, sep = '_vs_')
     
-    dp[sapply(dp, is.null)] <- NULL
+    if(length(dp) > 0){
+        dp[sapply(dp, is.null)] <- NULL
+    }
+    
     if (length(dp) > 0){
         return(dp)
     }else{
@@ -523,7 +526,10 @@ for (conp.bed in conp.bed.all){
     dp.list[[basename(conp.bed)]] <- wrapper_one_conp(ss, cmp, tgt, conp.bed, count.txts)
     
 }
-dp.list[sapply(dp.list,is.null)] <- NULL
+if (length(dp.list) > 0){
+    dp.list[sapply(dp.list,is.null)] <- NULL
+}
+
 if (length(dp.list) == 0){
     stop (paste("No comparison was done. Check if", args[1], "and", args[2], "do not match!"))
 }
