@@ -242,8 +242,8 @@ workflow CALL_PEAKS {
     */
 
     MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT(
-        ch_macs2_peaks_igg_broad
-        .join (ch_macs2_peaks_noigg_broad.with_control )
+        ch_macs2_peaks_noigg_broad.with_control
+        .join ( ch_macs2_peaks_igg_broad )
         .map {row -> [row[0], row[1], row[2]]},
         [[:],[]]
     )
