@@ -6,7 +6,7 @@ process GET_FASTQ_PATHS {
     tag "Get paths to fastq files."
 
     input:
-    val ( input_dir )
+    path ( fq_dir )
 
     output:
     path '*.csv'        , emit: csv
@@ -17,7 +17,7 @@ process GET_FASTQ_PATHS {
 
     script:
     """
-    get_fastq_paths.r $input_dir
+    get_fastq_paths.r $fq_dir
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

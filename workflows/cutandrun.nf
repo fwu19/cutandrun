@@ -206,7 +206,7 @@ workflow CUTANDRUN {
             }
         }else {
             GET_FASTQ_PATHS (
-                params.input_dir
+                Channel.fromPath("${params.input_dir}/", type: 'dir', checkIfExists: true)
             )
             ch_input = GET_FASTQ_PATHS.out.csv
         }
