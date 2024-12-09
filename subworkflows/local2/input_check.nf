@@ -8,11 +8,13 @@ workflow INPUT_CHECK {
     take:
     samplesheet // file: /path/to/samplesheet.csv
     metadata
+    workflow
 
     main:
     SAMPLESHEET_CHECK (
         samplesheet,
-        metadata
+        metadata,
+        workflow
     )
 
     SAMPLESHEET_CHECK.out.csv

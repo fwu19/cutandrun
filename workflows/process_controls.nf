@@ -209,7 +209,8 @@ workflow PROCESS_CONTROLS {
         ch_metadata = params.metadata ? file( params.metadata, checkIfExists: true ) : ch_dummy_csv
         INPUT_CHECK (
             ch_input,
-            ch_metadata
+            ch_metadata,
+            params.workflow
         )
 
         samplesheet = INPUT_CHECK.out.samplesheet

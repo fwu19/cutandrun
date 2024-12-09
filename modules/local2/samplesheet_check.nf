@@ -8,6 +8,7 @@ process SAMPLESHEET_CHECK {
     input:
     path ( samplesheet )
     path ( metadata )
+    val (workflow)
 
     output:
     path '*.csv'        , emit: csv
@@ -18,7 +19,7 @@ process SAMPLESHEET_CHECK {
 
     script:
     """
-    samplesheet_check.r $samplesheet samplesheet.valid.csv $params.use_control $metadata
+    samplesheet_check.r $samplesheet samplesheet.valid.csv $workflow $metadata
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
