@@ -6,7 +6,7 @@ options(stringsAsFactors = F)
 library(dplyr)
 
 ## functions ####
-get_fastqs <- function(fq_dirs){
+get_fastqs <- function(fq_dirs, workflow){
     ## get paths to fastq files
     fqs <- normalizePath(grep('undetermined', list.files(fq_dirs, recursive = T, full.names = T, pattern = "fastq.gz"), invert = T, value = T, ignore.case = T))
     fqs1 <- sort(grep("_S[0-9]+(_L[0-9]+)?_R1_", fqs, value = T))
@@ -31,18 +31,28 @@ get_fastqs <- function(fq_dirs){
             id = gsub("_S[0-9]+(_L[0-9]+)?_R1_.*", "", basename(fastq_1)),
             fastq_2 = ifelse(single_end, "", fqs2)
         ) %>% 
-        filter(
-            !grepl("^PC_.*K562", id) # exclude processing controls
-        ) %>% 
         mutate(
             sample_group = id,
             sample_replicate = 1,
-            target = "",
+            target = id,
             control = "",
             call_peak = 'true',
             call_rep_peak = 'true',
             call_con_peak = 'true'
         )
+    
+    if (workflow == 'process_controls'){
+        ss <- ss %>% 
+            filter(
+                grepl("^PC_.*K562", id) # keep processing controls only
+            )
+        
+    }else{
+        ss <- ss %>% 
+            filter(
+                !grepl("^PC_.*K562", id) # exclude processing controls
+            )
+    }
     
     ## 
     return(ss)
@@ -50,11 +60,10 @@ get_fastqs <- function(fq_dirs){
 
 ## read arguments ####
 args <- as.vector(commandArgs(T))
-input_dirs <- args
+workflow <- args[1]
+input_dirs <- args[2:length(args)]
 
-ss <- bind_rows(lapply(
-    input_dirs, get_fastqs
-))
+ss <- get_fastqs(input_dirs, workflow)
 
 ss %>% 
     write.table('input.csv', sep = ',', quote = F, row.names = F)

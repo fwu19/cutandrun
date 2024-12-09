@@ -54,6 +54,7 @@ if (anno_readme && file(anno_readme).exists()) {
 
 // Stage dummy file to be used as an optional input where required
 ch_dummy_file = file("$projectDir/assets/dummy_file.txt", checkIfExists: true)
+ch_dummy_csv = file("$projectDir/assets/local/dummy_file.csv", checkIfExists: true)
 
 // Stage awk files for parsing log files
 ch_bt2_to_csv_awk     = file("$projectDir/bin/bt2_report_to_csv.awk"    , checkIfExists: true)
@@ -176,7 +177,7 @@ include { DIFFERENTIAL_PEAKS            } from '../modules/local2/differential_p
 ========================================================================================
 */
 
-workflow PROCESSING_CONTROLS {
+workflow PROCESS_CONTROLS {
 
     // Init
     ch_software_versions = Channel.empty()
@@ -196,18 +197,22 @@ workflow PROCESSING_CONTROLS {
      * SUBWORKFLOW: Read in samplesheet, validate and stage input files
      */
     if(params.run_input_check) {
-        if ( params.input_dir ){
+
+        if ( params.input_dir =~ 'dummy' ){
+            if ( params.input =~ 'dummy' ){
+                exit 1, 'Neither --input nor --input_dir is specified!'
+            }else {
+                ch_input = Channel.fromPath( params.input, checkIfExists: true )
+            }
+        }else {
             GET_FASTQ_PATHS (
-                params.input_dir
+                Channel.fromPath("${params.input_dir}/", type: 'dir', checkIfExists: true),
+                params.workflow
             )
             ch_input = GET_FASTQ_PATHS.out.csv
-        } else if ( params.input =~ 'dummy_input.csv' ){
-            exit ( 'Neither --input nor --input_dir is specified!' )
-        } else {
-            ch_input = Channel.fromPath( params.input, checkIfExists: true )
         }
 
-        ch_metadata = params.metadata ? file( params.metadata, checkIfExists: true ) : ch_dummy_file
+        ch_metadata = params.metadata ? file( params.metadata, checkIfExists: true ) : ch_dummy_csv
         INPUT_CHECK (
             ch_input,
             ch_metadata
@@ -550,9 +555,9 @@ workflow PROCESSING_CONTROLS {
         // [ meta, path(txt) ]
     }
 
-    ch_rip = Channel.empty()
     ch_orig_csv = Channel.empty()
     ch_orig_widths = Channel.empty()
+    ch_rip = Channel.empty()
     ch_rep_bed = Channel.empty()
     ch_rep_csv = Channel.empty()
     ch_con_bed = Channel.empty()
@@ -569,7 +574,7 @@ workflow PROCESSING_CONTROLS {
         READS_IN_PEAK(
             ch_peak_bam
         )
-        ch_rip = READS_IN_PEAK.out.csv.collect{it[1]}
+        ch_rip = READS_IN_PEAK.out.csv
         // ch_rip.view()
 
 
@@ -597,45 +602,47 @@ workflow PROCESSING_CONTROLS {
         /*
         * Generate replicated peaks and collect metrics
         */
-        REPLICATED_PEAKS(
-            ch_peaks_final
-            .filter { it[0].call_rep_peak == true }
-            .map { it -> [ [it[0].group, it[0].target], it[1] ]}
-            .groupTuple (by: 0)
-            .map { it -> [ it[0][0], it[0][1], it[1].flatten().collect() ] },
-            params.min_replicates
-        )
-        ch_rep_bed = REPLICATED_PEAKS.out.bed
-        ch_rep_csv = REPLICATED_PEAKS.out.csv
-        // ch_rep_bed.view()
-        // [ target, [peaks] ]
+        if (params.workflow == "cutandrun"){
+            REPLICATED_PEAKS(
+                ch_peaks_final
+                    .filter { it[0].call_rep_peak == true }
+                    .map { it -> [ [it[0].group, it[0].target], it[1] ]}
+                    .groupTuple (by: 0)
+                    .map { it -> [ it[0][0], it[0][1], it[1].flatten().collect() ] },
+                params.min_replicates
+            )
+            ch_rep_bed = REPLICATED_PEAKS.out.bed
+            ch_rep_csv = REPLICATED_PEAKS.out.csv
+            //ch_rep_bed.view()
+            // [ target, [peaks] ]
 
-        /*
-        * Generate consensus peaks and collect metrics
-        */
-        CONSENSUS_PEAKS(
-            samplesheet,
-            ch_rep_bed
-            .groupTuple ( by: 0 )
-            .map { it -> [ it[0], it[1].flatten().collect() ] }
-        )
-        ch_con_bed = CONSENSUS_PEAKS.out.bed
-        ch_con_csv = CONSENSUS_PEAKS.out.csv
-        // ch_conp_bed.view()
-        // [ target, path(conp) ]
+            /*
+            * Generate consensus peaks and collect metrics
+            */
+            CONSENSUS_PEAKS(
+                ch_rep_bed
+                .groupTuple ( by: 0 )
+                .map { it -> [ it[0], it[1].flatten().collect() ] }
+                .combine ( samplesheet )
+            )
+            ch_con_bed = CONSENSUS_PEAKS.out.bed
+            ch_con_csv = CONSENSUS_PEAKS.out.csv
+            // ch_conp_bed.view()
+            // [ target, path(conp) ]
 
-        /*
-        * Annotate consensus peaks
-        */
-        ch_gtf_ann = params.local_assets ? file("${params.local_assets}/${params.genome}/genes.proteinCoding_lncRNA.gtf") : ch_dummy_file
+            /*
+            * Annotate consensus peaks
+            */
+            ch_gtf_ann = params.local_assets ? file("${params.local_assets}/${params.genome}/genes.proteinCoding_lncRNA.gtf") : ch_dummy_file
 
-        ANNOTATE_CONSENSUS_PEAKS(
-            params.genome,
-            ch_gtf_ann,
-            ch_conp.collect{it[1]}.flatten()
-        )
-        ch_conp_ann = ANNOTATE_CONSENSUS_PEAKS.out.txt
-        // ch_conp_ann.view()
+            ANNOTATE_CONSENSUS_PEAKS(
+                params.genome,
+                ch_gtf_ann,
+                ch_con_bed.collect{it[1]}.flatten()
+            )
+            ch_conp_ann = ANNOTATE_CONSENSUS_PEAKS.out.txt
+            // ch_conp_ann.view()
+        }
 
     }
 
@@ -646,7 +653,7 @@ workflow PROCESSING_CONTROLS {
             * Count reads in consensus peaks
             */
             // ch_samtools_bam.view()
-            ch_con_peaks
+            ch_con_bed
                 .cross (
                     ch_samtools_bam
                         .filter { it[0].target != "IgG" }
@@ -668,7 +675,7 @@ workflow PROCESSING_CONTROLS {
             ch_conp_reads
                 .groupTuple( by: 0 )
                 .map { it -> [ it[0], it[1].flatten().collect() ]}
-                .cross ( CONSENSUS_PEAKS.out.bed )
+                .cross ( ch_con_bed )
                 .map { it -> [ it[0][0], it[0][1], it[1][1] ]}
                 .set { ch_tgt_reads_conp }
             //ch_tgt_reads_conp.view()
@@ -677,12 +684,13 @@ workflow PROCESSING_CONTROLS {
             /*
             * Call differential peaks
             */
-            ch_comparison = params.comparison ? file ( params.comparison, checkIfExists: true ) : ch_dummy_file
-
+            ch_comparison = params.comparison ? Channel.fromPath( params.comparison, checkIfExists: true ) : ch_dummy_file
+            // if dummy file or empty file is used, throw a warning and continue.
+            // if file has contents but not a correct format, throw an error.
             DIFFERENTIAL_PEAKS(
-                samplesheet,
-                ch_comparison,
                 ch_tgt_reads_conp
+                    .combine(samplesheet)
+                    .combine(ch_comparison)
             )
             ch_dp = DIFFERENTIAL_PEAKS.out.data
             //ch_dp.view()
@@ -694,10 +702,11 @@ workflow PROCESSING_CONTROLS {
             /*
             * Make plots for report
             */
+            ch_report_rmd = params.local_assets ? Channel.fromPath("${params.local_assets}/report/", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
             GENERATE_REPORT(
                 samplesheet,
                 ch_read_metrics.ifEmpty([]),
-                ch_frag_lens.ifEmpty([]),
+                ch_frag_lens.collect{it[1]}.ifEmpty([]),
                 ch_orig_csv.collect{it[1]}.ifEmpty([]),
                 ch_orig_widths.collect{it[1]}.ifEmpty([]),
                 ch_rip.collect{it[1]}.ifEmpty([]),
@@ -706,7 +715,7 @@ workflow PROCESSING_CONTROLS {
                 ch_con_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
                 ch_conp_ann.collect{it[1]}.ifEmpty([]),
                 ch_dp.flatten().collect().ifEmpty([]),
-                file("$projectDir/assets/local/report.Rmd", checkIfExists: true)
+                ch_report_rmd
             )
 
 

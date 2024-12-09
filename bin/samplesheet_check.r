@@ -28,18 +28,18 @@ add_metadata <- function(ss, meta_csv){
     
     ## add missing columns
     ss$sample_group <- add_col(ss, 'sample_group', ss$id)
-    ss$target <- add_col(ss, 'target', "")
+    ss$target <- add_col(ss, 'target', ss$id)
     ss$sample_replicate <- add_col(ss, 'sample_replicate', 1)
     ss$control <- add_col(ss, 'control', "")
     ss$call_peak <- add_col(ss, 'call_peak', 'true')
     ss$call_rep_peak <- add_col(ss, 'call_rep_peak', 'true')
     ss$call_con_peak <- add_col(ss, 'call_con_peak', 'true')
-    
-    ss <- ss %>% 
-        mutate(
-            group = paste(sample_group, target, sep = '_'), # to be compatible with nf-core
-            replicate = sample_replicate
-        )
+    if (identical(ss$id, ss$target)){
+        ss$group <- ss$id
+    }else{
+        ss$group <- paste(ss$sample_group, ss$target, sep = '_')
+    }
+    ss$replicate <- ss$sample_replicate
     
     ## identify controls and modify accordingly
     controls <- unique(ss$control)
@@ -68,7 +68,7 @@ meta_csv <- ifelse(length(args) > 3, args[4], '')
 
 
 ## generate sample sheet ####
-ss <- read.csv(in_csv)
+ss <- read.csv(in_csv, colClasses = 'character')
 
 ## check single end fastq
 if (!'id' %in% colnames(ss)){

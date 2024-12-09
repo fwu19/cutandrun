@@ -65,9 +65,9 @@ WorkflowMain.initialise(workflow, params, log, args)
 */
 
 include { CUTANDRUN } from './workflows/cutandrun'
-include { PROCESSING_CONTROLS } from './workflows/processing_controls'
+include { PROCESS_CONTROLS } from './workflows/process_controls'
 
-workflow_list = [ 'cutandrun', 'processing_controls' ]
+workflow_list = [ 'cutandrun', 'process_controls' ]
 workflow NFCORE_CUTANDRUN {
     if ( !params.workflow ){
         exit 1, "Specify a variant workflow option. Valid options: ${workflow_list.join(', ')}"
@@ -76,11 +76,11 @@ workflow NFCORE_CUTANDRUN {
         * WORKFLOW: Run main nf-core/cutandrun analysis pipeline
          */
         CUTANDRUN ()
-    } else if ( params.workflow == 'processing_controls' ){
+    } else if ( params.workflow == 'process_controls' ){
         /*
         * WORKFLOW: Run workflow to analyze processing controls only
         */
-        PROCESSING_CONTROLS()
+        PROCESS_CONTROLS()
     } else {
         exit 1, "Invalid variant workflow option: ${params.workflow}. Valid options: ${workflow_list.join(', ')}"
     }
