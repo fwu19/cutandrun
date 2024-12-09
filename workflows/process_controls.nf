@@ -154,17 +154,11 @@ include { CUSTOM_DUMPSOFTWAREVERSIONS                                  } from ".
 include { INPUT_CHECK                   } from "../subworkflows/local2/input_check"
 include { CALL_PEAKS                    } from '../subworkflows/local2/call_peaks'
 include { COMPUTE_GENOMECOVERAGE        } from "../subworkflows/local2/compute_genomecoverage"
+include { QC_READS                    } from '../subworkflows/local2/qc_reads'
+include { QC_PEAKS                    } from '../subworkflows/local2/qc_peaks'
 
 include { GET_FASTQ_PATHS               } from '../modules/local2/get_fastq_paths'
 include { MULTIQC                       } from '../modules/local2/multiqc'
-include { FRAGMENT_LENGTHS               } from '../modules/local2/fragment_lengths'
-include { READ_METRICS                  } from '../modules/local2/read_metrics'
-include { READS_IN_PEAK                 } from '../modules/local2/reads_in_peak'
-include { ORIGINAL_PEAKS                } from '../modules/local2/original_peaks'
-include { ORIGINAL_PEAK_WIDTHS          } from '../modules/local2/original_peak_widths'
-include { REPLICATED_PEAKS              } from '../modules/local2/replicated_peaks'
-include { CONSENSUS_PEAKS               } from '../modules/local2/consensus_peaks'
-include { ANNOTATE_CONSENSUS_PEAKS      } from '../modules/local2/annotate_consensus_peaks'
 include { GENERATE_REPORT                  } from '../modules/local2/generate_report'
 include { READS_IN_CONSENSUS_PEAKS      } from '../modules/local2/reads_in_consensus_peaks'
 include { DIFFERENTIAL_PEAKS            } from '../modules/local2/differential_peaks'
@@ -492,7 +486,7 @@ workflow PROCESS_CONTROLS {
     /*
     * Run MultiQC
     */
-    multiqc_data = Channel.empty()
+    ch_multiqc_data = Channel.empty()
     if (params.run_multiqc){
 
         MULTIQC(
@@ -505,7 +499,7 @@ workflow PROCESS_CONTROLS {
             ch_markduplicates_metrics.collect{it[1]}.ifEmpty([])
 
         )
-
+        ch_multiqc_data = MULTIQC.out.data
     }
 
     /*
@@ -531,28 +525,13 @@ workflow PROCESS_CONTROLS {
     ch_read_metrics = Channel.empty()
     ch_frag_lens = Channel.empty()
     if (params.run_local_read_qc){
-
-        /*
-        * Collect reads metrics from MultiQC data
-        */
-
-        READ_METRICS(
-            MULTIQC.out.data
-        )
-        ch_read_metrics = READ_METRICS.out.csv
-        //ch_read_metrics.view()
-        // path(csv)
-
-        /*
-        * Compute fragment length
-        */
-
-        FRAGMENT_LENGTHS(
+        QC_READS(
+            ch_multiqc_data,
             ch_samtools_bam
         )
-        ch_frag_lens = FRAGMENT_LENGTHS.out.txt
-        // ch_frag_lens.view()
-        // [ meta, path(txt) ]
+        ch_read_metrics = QC_READS.out.read_metrics
+        ch_frag_lens = QC_READS.out.frag_lens
+
     }
 
     ch_orig_csv = Channel.empty()
@@ -563,86 +542,26 @@ workflow PROCESS_CONTROLS {
     ch_con_bed = Channel.empty()
     ch_con_csv = Channel.empty()
     ch_conp_ann = Channel.empty()
-    if (params.run_local_peak_qc){
-        /*
-        * Compute reads in peak
-        */
-        ch_peaks_final
-            .join(ch_samtools_bam)
-            .set{ch_peak_bam}
-
-        READS_IN_PEAK(
-            ch_peak_bam
-        )
-        ch_rip = READS_IN_PEAK.out.csv
-        // ch_rip.view()
-
-
-        /*
-        * Collect metrics for original peaks
-        */
-        ORIGINAL_PEAKS(
-            ch_peaks_all
-        )
-        ch_orig_csv = ORIGINAL_PEAKS.out.csv
-        // ch_orig_peaks.view()
-        // path(peak_metrics)
-
-        /*
-        * Collect peak widths for final peaks
-        */
-
-        ORIGINAL_PEAK_WIDTHS(
+    if (params.run_local_peak_qc && params.workflow == "cutandrun"){
+        ch_gtf_ann = params.local_assets ? file("${params.local_assets}/${params.genome}/genes.proteinCoding_lncRNA.gtf") : ch_dummy_file
+        QC_PEAKS(
+            samplesheet,
+            params.min_replicates,
+            params.genome,
+            ch_gtf_ann,
+            ch_samtools_bam,
+            ch_peaks_all,
             ch_peaks_final
+
         )
-        ch_orig_widths = ORIGINAL_PEAK_WIDTHS.out.csv
-        // ch_orig_widths.view()
-        // path(peak_widths)
-
-        /*
-        * Generate replicated peaks and collect metrics
-        */
-        if (params.workflow == "cutandrun"){
-            REPLICATED_PEAKS(
-                ch_peaks_final
-                    .filter { it[0].call_rep_peak == true }
-                    .map { it -> [ [it[0].group, it[0].target], it[1] ]}
-                    .groupTuple (by: 0)
-                    .map { it -> [ it[0][0], it[0][1], it[1].flatten().collect() ] },
-                params.min_replicates
-            )
-            ch_rep_bed = REPLICATED_PEAKS.out.bed
-            ch_rep_csv = REPLICATED_PEAKS.out.csv
-            //ch_rep_bed.view()
-            // [ target, [peaks] ]
-
-            /*
-            * Generate consensus peaks and collect metrics
-            */
-            CONSENSUS_PEAKS(
-                ch_rep_bed
-                .groupTuple ( by: 0 )
-                .map { it -> [ it[0], it[1].flatten().collect() ] }
-                .combine ( samplesheet )
-            )
-            ch_con_bed = CONSENSUS_PEAKS.out.bed
-            ch_con_csv = CONSENSUS_PEAKS.out.csv
-            // ch_conp_bed.view()
-            // [ target, path(conp) ]
-
-            /*
-            * Annotate consensus peaks
-            */
-            ch_gtf_ann = params.local_assets ? file("${params.local_assets}/${params.genome}/genes.proteinCoding_lncRNA.gtf") : ch_dummy_file
-
-            ANNOTATE_CONSENSUS_PEAKS(
-                params.genome,
-                ch_gtf_ann,
-                ch_con_bed.collect{it[1]}.flatten()
-            )
-            ch_conp_ann = ANNOTATE_CONSENSUS_PEAKS.out.txt
-            // ch_conp_ann.view()
-        }
+        ch_rip = QC_PEAKS.out.rip
+        ch_orig_csv = QC_PEAKS.out.orig_csv
+        ch_orig_widths= QC_PEAKS.out.orig_widths
+        ch_rep_bed= QC_PEAKS.out.rep_bed
+        ch_rep_csv= QC_PEAKS.out.rep_csv
+        ch_con_bed= QC_PEAKS.out.con_bed
+        ch_con_csv= QC_PEAKS.out.con_csv
+        ch_conp_ann= QC_PEAKS.out.conp_ann
 
     }
 
