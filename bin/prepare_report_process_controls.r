@@ -152,13 +152,16 @@ if (dir.exists('reads_in_peak')){
 if (dir.exists('replicated_peaks')){
   rep.metrics <- list.files('replicated_peaks', full.names = T, pattern = 'replicated_peaks')
   if (length(rep.metrics) > 0){
-    dat$nreps <- bind_rows(lapply(rep.metrics, read.csv)) %>% 
-      left_join(
-        dat$meta %>% 
-          dplyr::select(group,sample_group, target) %>% 
-          unique.data.frame(),
-        by = 'group'
-      )
+    k <- file.size(rep.metrics) > 0
+    if (sum(k) > 0){
+      dat$nreps <- bind_rows(lapply(rep.metrics[k], read.csv)) %>% 
+        left_join(
+          dat$npeaks %>% 
+            dplyr::select(file, sample_group, target, sample_replicate) %>% 
+            unique.data.frame(),
+          by = 'file'
+        )
+    }
   }
 }
 
@@ -188,7 +191,7 @@ add_new_runs <- function(new.ss, new.dir, dat.rds = 'saved_data/data.rds', rm.fl
   return(dat)
 }
 
-if (dir.exists("saved_data")){
+if (file.exists("saved_data/data.rds")){
   dat.old <- readRDS("saved_data/data.rds")
   
   common.names <- intersect(names(dat), names(dat.old))

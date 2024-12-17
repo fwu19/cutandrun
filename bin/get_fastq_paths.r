@@ -61,7 +61,13 @@ get_fastqs <- function(fq_dirs, workflow){
 ## read arguments ####
 args <- as.vector(commandArgs(T))
 workflow <- args[1]
-input_dirs <- args[2:length(args)]
+if(file_test('-f', args[2])){
+    input_dirs <- scan(args[2], what = 'character')
+}else if (file_test('-d', args[2])){
+    input_dirs <- args[2]
+}else{
+    stop("--input_dir takes either path/to/fastq/dir or a file containing paths/to/fastq/dir (one path in each row)")
+}
 
 ss <- get_fastqs(input_dirs, workflow)
 

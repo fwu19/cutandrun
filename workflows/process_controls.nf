@@ -156,10 +156,12 @@ include { CALL_PEAKS                    } from '../subworkflows/local2/call_peak
 include { COMPUTE_GENOMECOVERAGE        } from "../subworkflows/local2/compute_genomecoverage"
 include { QC_READS                    } from '../subworkflows/local2/qc_reads'
 include { QC_PEAKS                    } from '../subworkflows/local2/qc_peaks'
+include { QC_PROCESS_CONTROLS                    } from '../subworkflows/local2/qc_process_controls'
 
 include { GET_FASTQ_PATHS               } from '../modules/local2/get_fastq_paths'
 include { MULTIQC                       } from '../modules/local2/multiqc'
 include { GENERATE_REPORT                  } from '../modules/local2/generate_report'
+include { GENERATE_REPORT_PROCESS_CONTROLS } from '../modules/local2/generate_report_process_controls'
 include { READS_IN_CONSENSUS_PEAKS      } from '../modules/local2/reads_in_consensus_peaks'
 include { DIFFERENTIAL_PEAKS            } from '../modules/local2/differential_peaks'
 
@@ -200,7 +202,7 @@ workflow PROCESS_CONTROLS {
             }
         }else {
             GET_FASTQ_PATHS (
-                Channel.fromPath("${params.input_dir}/", type: 'dir', checkIfExists: true),
+                Channel.fromPath("${params.input_dir}", checkIfExists: true),
                 params.workflow
             )
             ch_input = GET_FASTQ_PATHS.out.csv
@@ -539,10 +541,6 @@ workflow PROCESS_CONTROLS {
     ch_orig_widths = Channel.empty()
     ch_rip = Channel.empty()
     ch_rep_bed = Channel.empty()
-    ch_rep_csv = Channel.empty()
-    ch_con_bed = Channel.empty()
-    ch_con_csv = Channel.empty()
-    ch_conp_ann = Channel.empty()
     if (params.run_local_peak_qc && params.workflow == "cutandrun"){
         ch_gtf_ann = params.local_assets ? file("${params.local_assets}/${params.genome}/genes.proteinCoding_lncRNA.gtf") : ch_dummy_file
         QC_PEAKS(
@@ -563,6 +561,23 @@ workflow PROCESS_CONTROLS {
         ch_con_bed= QC_PEAKS.out.con_bed
         ch_con_csv= QC_PEAKS.out.con_csv
         ch_conp_ann= QC_PEAKS.out.conp_ann
+
+    }
+
+    if (params.run_local_peak_qc && params.workflow == "process_controls"){
+        ch_hiconf_peaks = params.local_assets ? Channel.fromPath("${params.local_assets}/process_controls/high_confidence_peaks/", type: "dir", checkIfExists: true) : Channel.empty()
+        QC_PROCESS_CONTROLS(
+            samplesheet,
+            params.genome,
+            ch_samtools_bam,
+            ch_peaks_all,
+            ch_peaks_final,
+            ch_hiconf_peaks.ifEmpty([])
+        )
+        ch_rip = QC_PROCESS_CONTROLS.out.rip
+        ch_orig_csv = QC_PROCESS_CONTROLS.out.orig_csv
+        ch_orig_widths= QC_PROCESS_CONTROLS.out.orig_widths
+        ch_rep_csv= QC_PROCESS_CONTROLS.out.rep_csv
 
     }
 
@@ -618,7 +633,7 @@ workflow PROCESS_CONTROLS {
 
     }
 
-    if (params.run_local_report){
+    if (params.run_local_report & params.workflow == "cutandrun"){
             /*
             * Make plots for report
             */
@@ -641,6 +656,26 @@ workflow PROCESS_CONTROLS {
 
     }
 
+    if (params.run_local_report & params.workflow == "process_controls"){
+            /*
+            * Make plots for report
+            */
+            ch_report_rmd = params.local_assets ? Channel.fromPath("${params.local_assets}/process_controls/cutandrun_process_controls.Rmd", checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/cutandrun_process_controls.Rmd", checkIfExists: true)
+            ch_saved_data = params.local_assets ? Channel.fromPath("${params.local_assets}/process_controls/saved_data", type: "dir", checkIfExists: true) : Channel.empty()
+            GENERATE_REPORT_PROCESS_CONTROLS(
+                samplesheet,
+                ch_read_metrics.ifEmpty([]),
+                ch_frag_lens.collect{it[1]}.ifEmpty([]),
+                ch_orig_csv.collect{it[1]}.ifEmpty([]),
+                ch_orig_widths.collect{it[1]}.ifEmpty([]),
+                ch_rip.collect{it[1]}.ifEmpty([]),
+                ch_rep_csv.collect{it[1]}.ifEmpty([]),
+                ch_saved_data.ifEmpty([]),
+                ch_report_rmd
+            )
+
+
+    }
 
 
 }
