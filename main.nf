@@ -65,7 +65,6 @@ WorkflowMain.initialise(workflow, params, log, args)
 */
 
 include { CUTANDRUN } from './workflows/cutandrun'
-include { PROCESS_CONTROLS } from './workflows/process_controls'
 
 workflow_list = [ 'cutandrun', 'process_controls' ]
 workflow NFCORE_CUTANDRUN {
@@ -80,7 +79,7 @@ workflow NFCORE_CUTANDRUN {
         /*
         * WORKFLOW: Run workflow to analyze processing controls only
         */
-        PROCESS_CONTROLS()
+        CUTANDRUN ()
     } else {
         exit 1, "Invalid variant workflow option: ${params.workflow}. Valid options: ${workflow_list.join(', ')}"
     }
