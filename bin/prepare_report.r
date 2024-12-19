@@ -19,7 +19,10 @@ input.dirs <- c(
   'original_peak_widths',
   'reads_in_peak',
   'replicated_peaks',
-  'saved_data'
+  'consensus_peaks',
+  'consensus_beds',
+  'consensus_annotation',
+  'differential_peaks'
 )
   
 dat <- list()
@@ -148,6 +151,8 @@ if (dir.exists('reads_in_peak')){
 
 }
 
+## conp dat ####
+{
 ## get metrics of replicated peaks ####
 if (dir.exists('replicated_peaks')){
   rep.metrics <- list.files('replicated_peaks', full.names = T, pattern = 'replicated_peaks')
@@ -161,42 +166,133 @@ if (dir.exists('replicated_peaks')){
       )
   }
 }
-
-
-## Save results and add to saved data if available ####
-add_new_runs <- function(new.ss, new.dir, dat.rds = 'saved_data/data.rds', rm.flowcells = NULL){
-  dat.old <- readRDS(dat.rds)
+## get metrics of consensus peaks ####
+if (dir.exists('consensus_peaks')){
   
-  dat.new <- list(
-    ss = read.csv(new.ss),
-    meta = read.csv(paste(new.dir, 'read_metrics.csv', sep = '/')),
-    npeaks = read.csv(paste(new.dir, 'original_peak_metrics.csv', sep = '/')),
-    wpeaks = readRDS(paste(new.dir, 'original_peak_widths.rds', sep = '/')),
-    frag_lens = readRDS(paste(new.dir, 'fragment_length.rds', sep = '/'))
-  )
-  
-  dat <-lapply(
-    names(dat.old),
-    function(i){
-      data.table::rbindlist(
-        c(dat.old[i], dat.new[i]), 
-        fill = T, use.names = T
-      )
+  conp.metrics <- list.files('consensus_peaks', full.names = T, pattern = 'consensus_peaks')
+  if (length(conp.metrics) > 0){
+    dat$nconps <- bind_rows(lapply(conp.metrics, read.csv))
+  }
+}
+
+## get consenus peaks ####
+if (dir.exists('consensus_beds')){
+  conp.bed <- list.files('consensus_beds/', full.names = T, pattern = '.bed')
+
+  ## Compare consensus peaks across sample groups ####  
+  conps <- lapply(
+    conp.bed, function(fname){
+      read.delim(fname, header = F, col.names = c('chrom', 'start', 'end', 'conp.id','sample.groups', 'npeak'))
     }
-  ); names(dat) <- names(dat.old)
+  ); names(conps) <- basename(conp.bed)
   
-  return(dat)
-}
-
-if (dir.exists("saved_data")){
-  dat.old <- readRDS("saved_data/data.rds")
+  if(length(sample_groups)==1){
+    dat$rep2conp <- lapply(
+      conps, function(pk){
+        mtx <- matrix(rep(1, nrow(pk)), ncol = 1)
+        rownames(mtx) <- pk$conp.id
+        colnames(mtx) <- sample_groups
+        return(mtx)
+      }
+    )
+  }else{
+    dat$rep2conp <- lapply(
+      conps, function(pk){
+        mtx <- t(sapply(
+          strsplit(pk$sample.groups, split = ','),
+          function(v){
+            as.integer(sample_groups %in% v)
+          }
+        ))
+        dimnames(mtx) <- list(pk$conp.id, sample_groups)
+        return(mtx)
+      }
+    )
+    
+  }
   
-  common.names <- intersect(names(dat), names(dat.old))
-  dat[common.names] <- mapply(
-    bind_rows, dat.old[common.names], dat[common.names], SIMPLIFY = F
+  ## Compare MACS2 and SEACR by consensus peaks ####
+  conps.gr <- lapply(
+    conps, function(x){
+      if(nrow(x)>0){
+        makeGRangesFromDataFrame(x, ignore.strand = T, seqnames.field = 'chrom', start.field = 'start', end.field = 'end', starts.in.df.are.0based = T)
+      }
+    }
   )
   
-  dat[setdiff(names(dat.old), names(dat))] <- dat.old[setdiff(names(dat.old), names(dat))]
+  dat$seacr2macs <- lapply(
+    split(names(conps.gr), gsub('.macs2_.*|.seacr_.*', '', names(conps.gr))),
+    function(i){
+      require(GenomicRanges)
+      peak.list <- conps.gr[i]
+      
+      if(length(peak.list) == 1){return(NULL)} # only one peak set is available
+      
+      peak.list[sapply(peak.list, length) == 0] <- NULL
+      
+      if(length(peak.list) < 2){return(NULL)} # less than two peak sets are available
+      
+      tgt <- gsub('.macs2_.*|.seacr_.*', '', i[1])
+      
+      conp <- GRanges()
+      for (pk in peak.list){
+        conp <- c(conp, pk)
+      }
+      conp <- reduce(conp)
+      
+      overlap2conp <- as.data.frame(sapply(
+        peak.list, function(pk){countOverlaps(conp, pk)>0}
+      ))
+      colnames(overlap2conp) <- gsub('_peaks', '', stringr::str_extract(colnames(overlap2conp), "macs.*peaks|seacr.*peaks"))
+      
+      return(overlap2conp)
+    })
   
 }
+
+## genomic distribution of consensus peaks ####
+if (dir.exists('consensus_annotation')){
+  ann.txt <- list.files('consensus_annotation', pattern = 'annotation.txt', full.names = T, recursive = T)
+  
+  
+  dat$conp_ann <- lapply(ann.txt, function(fname){
+    read.delim(fname, header = T) %>%   
+      subset(!is.na(Annotation)) %>% 
+      mutate(
+        conp.id = .[,1],
+        genomic.location = gsub(' .*', '', Annotation)
+      ) %>% 
+      dplyr::select(conp.id, genomic.location)
+    
+  }); names(dat$conp_ann) <- gsub('.annotation.txt','',basename(ann.txt))
+  
+}
+
+
+}
+
+## Save results ####
 saveRDS(dat, 'data.rds')
+
+## cat dp.rds ####
+if (dir.exists('differential_peaks')){
+  dp.rds <- list.files('differential_peaks', full.names = T)
+  if (length(dp.rds) > 0){
+    dp <- do.call(c, lapply(
+      dp.rds, readRDS
+    ))
+    dp %>% saveRDS('dp.rds')
+  }
+  
+}
+
+## prepare report.Rmd ####
+file.copy('report/report.setup.Rmd', 'report.Rmd')
+if (file.exists('read_metrics.csv')){file.append('report.Rmd', 'report/report.read_qc.Rmd')}
+if (dir.exists('original_peaks')){file.append('report.Rmd', 'report/report.orig_qc.Rmd')}
+if (dir.exists('consensus_peaks')){file.append('report.Rmd', 'report/report.conp_qc.Rmd')}
+if (file.exists('dp.rds')){
+  file.append('report.Rmd', 'report/report.diff_peaks.Rmd')
+}
+file.append('report.Rmd', 'report/report.deliverables.Rmd')
+file.append('report.Rmd', 'report/report.methods.Rmd')
