@@ -69,9 +69,9 @@ add_metadata_process_controls <- function(ss){
     ss$flowcell <- basename(gsub('.Unaligned.*', '', ss$fastq_1))
     ss$flowcell <- ifelse(grepl('^2024', ss$flowcell), gsub('^2024','24', ss$flowcell), ss$flowcell)
     ss$sample_group <- ifelse(as.integer(gsub('_.*', '', ss$flowcell)) > 211110, 'PE50', 'PE25')
-    ss$sample_label <- gsub('^PC_|K562_','',ss$id)
+    ss$sample_label <- gsub('^PC_|K562_','',basename(ss$id))
     ss$target <- case_when(
-        grepl('H3K27', ss$id, ignore.case = T) ~ 'H3K27me3',
+        grepl('H3K27|H3K23|K27', ss$id, ignore.case = T) ~ 'H3K27me3',
         grepl('Pol', ss$id, ignore.case = T) ~ 'Pol2Ser5',
         grepl('Myc', ss$id, ignore.case = T) ~ 'cMyc',
         grepl('CTCF', ss$id, ignore.case = T) ~ 'CTCF',
@@ -86,7 +86,7 @@ add_metadata_process_controls <- function(ss){
         ) %>% 
         mutate(
             sample_replicate = paste0(
-                sapply(strsplit(flowcell, split = '_'), function(v){v[1]}),
+                sapply(strsplit(flowcell, split = '_'), function(v){paste(v[c(1,length(v))], collapse = '')}),
                 ifelse(n == 1, "", letters[i]))
         ) %>% 
         mutate(
