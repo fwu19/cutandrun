@@ -1,5 +1,5 @@
 process FILTER_PEAKS {
-    tag "$meta.id"
+    tag "filter peaks from $meta.id"
     label 'process_single'
 
     conda "conda-forge::sed=4.7"
