@@ -20,10 +20,11 @@ if (file.exists(hiconp.rds)){
   reps <- list()
   hiconp <- readRDS(hiconp.rds)
   for (pkt in peaks.txt){
+    if (file.size(pkt) > 0){
     peak <- read.delim(pkt, header = F) %>% 
       makeGRangesFromDataFrame(ignore.strand = T, seqnames.field = 'V1', start.field = 'V2', end.field = 'V3', starts.in.df.are.0based = T)
     
-    if (grepl('narrow',pkt) & 'macs2narow' %in% names(hiconp)){
+    if (grepl('narrow',pkt) & 'macs2narrow' %in% names(hiconp)){
       reps$macs2narrow <- data.frame(
         file = basename(pkt),
         replicated_peaks = sum(countOverlaps(hiconp$macs2narrow, peak)>0),
@@ -51,7 +52,7 @@ if (file.exists(hiconp.rds)){
     }
     
     rm(peak)
-    
+    }
   }
   
   bind_rows(reps) %>% 
