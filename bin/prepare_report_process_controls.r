@@ -167,28 +167,22 @@ if (dir.exists('replicated_peaks')){
 
 
 ## Save results and add to saved data if available ####
-add_new_runs <- function(new.ss, new.dir, dat.rds = 'saved_data/data.rds', rm.flowcells = NULL){
-  dat.old <- readRDS(dat.rds)
-  
-  dat.new <- list(
-    ss = read.csv(new.ss),
-    meta = read.csv(paste(new.dir, 'read_metrics.csv', sep = '/')),
-    npeaks = read.csv(paste(new.dir, 'original_peak_metrics.csv', sep = '/')),
-    wpeaks = readRDS(paste(new.dir, 'original_peak_widths.rds', sep = '/')),
-    frag_lens = readRDS(paste(new.dir, 'fragment_length.rds', sep = '/'))
-  )
-  
-  dat <-lapply(
-    names(dat.old),
-    function(i){
-      data.table::rbindlist(
-        c(dat.old[i], dat.new[i]), 
-        fill = T, use.names = T
-      )
-    }
-  ); names(dat) <- names(dat.old)
-  
-  return(dat)
+add_new <- function(df0, df1){
+  if ('file' %in% colnames(df1)){
+    bind_rows(
+      df0 %>% filter(!file %in% df1$file),
+      df1
+    )
+  }else if ('id' %in% colnames(df1)){
+    bind_rows(
+      df0 %>% filter(!id %in% df1$file),
+      df1
+    )
+    
+  }else{
+    bind_rows(df0, df1) %>% 
+      unique.data.frame()
+  }
 }
 
 if (file.exists("saved_data/data.rds")){
@@ -196,7 +190,7 @@ if (file.exists("saved_data/data.rds")){
   
   common.names <- intersect(names(dat), names(dat.old))
   dat[common.names] <- mapply(
-    bind_rows, dat.old[common.names], dat[common.names], SIMPLIFY = F
+    add_new, dat.old[common.names], dat[common.names], SIMPLIFY = F
   )
   
   dat[setdiff(names(dat.old), names(dat))] <- dat.old[setdiff(names(dat.old), names(dat))]
