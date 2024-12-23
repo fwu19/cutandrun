@@ -172,12 +172,15 @@ add_new <- function(df0, df1){
     bind_rows(
       df0 %>% filter(!file %in% df1$file),
       df1
-    )
+    ) %>% 
+      unique.data.frame()
+    
   }else if ('id' %in% colnames(df1)){
     bind_rows(
       df0 %>% filter(!id %in% df1$file),
       df1
-    )
+    ) %>% 
+      unique.data.frame()
     
   }else{
     bind_rows(df0, df1) %>% 
