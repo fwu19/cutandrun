@@ -153,6 +153,7 @@ include { CUSTOM_DUMPSOFTWAREVERSIONS                                  } from ".
 */
 include { INPUT_CHECK                   } from "../subworkflows/local2/input_check"
 include { CALL_PEAKS                    } from '../subworkflows/local2/call_peaks'
+include { CALL_PEAKS_PROCESS_CONTROLS   } from '../subworkflows/local2/call_peaks_process_controls'
 include { COMPUTE_GENOMECOVERAGE        } from "../subworkflows/local2/compute_genomecoverage"
 include { QC_READS                    } from '../subworkflows/local2/qc_reads'
 include { QC_PEAKS                    } from '../subworkflows/local2/qc_peaks'
@@ -510,7 +511,8 @@ workflow CUTANDRUN {
      */
     ch_peaks_all = Channel.empty()
     ch_peaks_final = Channel.empty()
-    if(params.run_peak_calling) {
+    if(params.run_peak_calling & params.workflow == "cutandrun") {
+
         CALL_PEAKS (
             ch_bedgraph_markdup,
             ch_bedgraph_dedup,
@@ -521,6 +523,23 @@ workflow CUTANDRUN {
         // [ meta, [peaks] ]
 
         ch_peaks_final = CALL_PEAKS.out.peaks_final
+        // ch_peaks_final.view()
+        // [ meta, [peaks] ]
+    }
+
+    if(params.run_peak_calling & params.workflow == "process_controls") {
+        CALL_PEAKS_PROCESS_CONTROLS (
+            ch_bedgraph_markdup,
+            ch_bedgraph_dedup,
+            ch_samtools_bam_markdup,
+            params.igg_dir,
+            params.use_igg
+        )
+        ch_peaks_all = CALL_PEAKS_PROCESS_CONTROLS.out.peaks_all
+        // ch_peaks_all.view()
+        // [ meta, [peaks] ]
+
+        ch_peaks_final = CALL_PEAKS_PROCESS_CONTROLS.out.peaks_final
         // ch_peaks_final.view()
         // [ meta, [peaks] ]
     }
@@ -565,7 +584,7 @@ workflow CUTANDRUN {
     }
 
     if (params.run_local_peak_qc && params.workflow == "process_controls"){
-        ch_hiconf_peaks = params.local_assets ? Channel.fromPath("${params.local_assets}/process_controls/high_confidence_peaks/", type: "dir", checkIfExists: true) : Channel.empty()
+        ch_hiconf_peaks = params.hiconf_peaks ? Channel.fromPath("${params.hiconf_peaks}", type: "dir", checkIfExists: true) : Channel.empty()
         QC_PROCESS_CONTROLS(
             samplesheet,
             params.genome,
@@ -660,8 +679,8 @@ workflow CUTANDRUN {
             /*
             * Make plots for report
             */
-            ch_report_rmd = params.local_assets ? Channel.fromPath("${params.local_assets}/process_controls/cutandrun_process_controls.Rmd", checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/cutandrun_process_controls.Rmd", checkIfExists: true)
-            ch_saved_data = params.local_assets ? Channel.fromPath("${params.local_assets}/process_controls/saved_data", type: "dir", checkIfExists: true) : Channel.empty()
+            ch_report_rmd = params.report_rmd ? Channel.fromPath("${params.report_rmd}", checkIfExists: true) : Channel.empty()
+            ch_saved_data = params.saved_data ? Channel.fromPath("${params.saved_data}", type: "dir", checkIfExists: true) : Channel.empty()
             GENERATE_REPORT_PROCESS_CONTROLS(
                 samplesheet,
                 ch_read_metrics.ifEmpty([]),
