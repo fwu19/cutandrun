@@ -233,7 +233,7 @@ workflow CALL_PEAKS {
     //MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.intersect | view
 
     MACS2_PEAKS_NARROW_FILTER(
-            ch_macs2_peaks_narrow_filtered.ifEmpty([[:],[]])
+            ch_macs2_peaks_narrow_filtered
     )
     ch_macs2_peaks_narrow_filtered =  MACS2_PEAKS_NARROW_FILTER.out.file
     ch_versions = ch_versions.mix(MACS2_PEAKS_NARROW_FILTER.out.versions)
@@ -253,7 +253,7 @@ workflow CALL_PEAKS {
     //MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.intersect | view
 
     MACS2_PEAKS_BROAD_FILTER(
-            ch_macs2_peaks_broad_filtered.ifEmpty([[:],[]])
+            ch_macs2_peaks_broad_filtered
     )
     ch_macs2_peaks_broad_filtered =  MACS2_PEAKS_BROAD_FILTER.out.file
     ch_versions = ch_versions.mix(MACS2_PEAKS_BROAD_FILTER.out.versions)

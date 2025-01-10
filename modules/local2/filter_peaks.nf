@@ -13,7 +13,7 @@ process FILTER_PEAKS {
     output:
     tuple val(meta), path("*.filtered.*"), emit: file
     path("versions.yml"), emit: versions
-    path("*"), optional: true
+    path("*.filtered.*"), optional: true
 
     when:
     task.ext.when == null || task.ext.when
@@ -23,7 +23,7 @@ process FILTER_PEAKS {
     def suffix   = task.ext.suffix ? "${task.ext.suffix}" : "txt"
 
     """
-    awk -F "\\t" '\$7 > 2 && \$9 > 2' $input > ${prefix}.filtered.${suffix}
+    [[ $prefix =~ 'null' ]] || awk -F "\\t" '\$7 > 2 && \$9 > 2' $input > ${prefix}.filtered.${suffix}
 
 
     cat <<-END_VERSIONS > versions.yml
