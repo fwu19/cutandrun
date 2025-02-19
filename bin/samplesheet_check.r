@@ -67,7 +67,6 @@ add_metadata <- function(ss, meta_csv){
 
 add_metadata_process_controls <- function(ss){
     ss$flowcell <- basename(gsub('.Unaligned.*', '', ss$fastq_1))
-    ss$flowcell <- ifelse(grepl('^2024', ss$flowcell), gsub('^2024','24', ss$flowcell), ss$flowcell)
     ss$sample_group <- ifelse(as.integer(gsub('_.*', '', ss$flowcell)) > 211110, 'PE50', 'PE25')
     ss$sample_label <- gsub('^PC_|K562_','',basename(ss$id))
     ss$target <- case_when(
@@ -86,7 +85,11 @@ add_metadata_process_controls <- function(ss){
         ) %>% 
         mutate(
             sample_replicate = paste0(
-                sapply(strsplit(flowcell, split = '_'), function(v){paste(v[c(1,length(v))], collapse = '')}),
+                sapply(
+                    strsplit(flowcell, split = '_'), 
+                    function(v){
+                        paste(c(stringr::str_sub(v[1], -6), v[length(v)]), collapse = '')
+                    }),
                 ifelse(n == 1, "", letters[i]))
         ) %>% 
         mutate(
