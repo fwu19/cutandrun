@@ -141,9 +141,12 @@ run_da <- function(
 
     ## retrieve and process data ####
     if(!is.null(group)){y0$samples$group <- group}
+    if (sum(y0$samples$group %in% control.group) < 2 & sum(y0$samples$group %in% test.group) < 2){
+        return(NULL)
+    }else if (sum(y0$samples$group %in% control.group) == 0 | sum(y0$samples$group %in% test.group) == 0){
+        return(NULL)
+    }
     j <- y0$samples$group %in% c(control.group, test.group)
-
-    if (sum(j) == 0){ return(NULL) }
 
     y <- y0[,j]
     y$samples$group <- ifelse(y$samples$group %in% control.group, 'control', 'test')
@@ -404,21 +407,25 @@ recal_sig <- function(txt, col.sig, fdr, lfc){
 }
 
 ## wrapper
-run_one_comparison <- function(y0, control, test, out.dir, prefix, plot.title, fdr, lfc, fdr2, lfc2, tgt){
-    k <- sapply(strsplit(y0$genes$sample.groups, split = ','), function(v){sum(c(control,test) %in% v) > 0 }) > 0 # filter peaks present in either control or test group
+run_one_comparison <- function(y0, control.group, test.group, out.dir, prefix, plot.title, fdr, lfc, fdr2, lfc2, tgt){
+    k <- sapply(
+        strsplit(y0$genes$sample.groups, split = ','),
+        function(v){sum(c(control.group, test.group) %in% v) > 0 }) > 0 # filter peaks present in either control or test group
     if(sum(k) == 0){ return(NULL)}
 
     out.prefix <- paste(out.dir, prefix, prefix, sep = '/')
     lst <- run_da(
         y0[k,],
         out.prefix,
-        control.group = gsub('-', '_', control),
-        test.group = gsub('-', '_', test),
+        control.group = gsub('-', '_', control.group),
+        test.group = gsub('-', '_', test.group),
         group = gsub('-', '_', y0$samples$sample_group),
         feature.length = 'length',
         fdr = fdr, lfc = lfc, fdr2 = fdr2, lfc2 = lfc2,
         target = tgt
     )
+
+    if(is.null(lst)){return(NULL)}
 
     y <- lst$y
     df <- lst$df
@@ -467,21 +474,16 @@ wrapper_one_conp <- function(ss, cmp, tgt, conp.bed, count.txts, fdr = 0.05, lfc
         samples = ssi
     )
 
-    ## filter out irrelevant comparisons ####
-    cmp <- cmp %>%
-        filter(test %in% y0$samples$sample_group & control %in% y0$samples$sample_group)
-    if (nrow(cmp) == 0){ return(NULL) }
-
     ## run DGE ####
     dp <- mapply(
         run_one_comparison,
         MoreArgs = list(y0 = y0, out.dir = out.dir, fdr = 0.05, lfc = log2(1.5), fdr2 = 0.01, lfc2 = 1, tgt = tgt),
-        cmp$control,
-        cmp$test,
-        paste(cmp$test, cmp$control, sep = '_vs_'),
-        paste(cmp$test, cmp$control, sep = ' vs '),
+        cmp$control.group,
+        cmp$test.group,
+        cmp$out.prefix,
+        cmp$plot.title,
         SIMPLIFY = F)
-    names(dp) <- paste(cmp$test, cmp$control, sep = '_vs_')
+    names(dp) <- basename(cmp$out.prefix)
 
     if(length(dp) > 0){
         dp[sapply(dp, is.null)] <- NULL
@@ -514,6 +516,13 @@ if (grepl('dummy_file', args[2])){
 }else{
     stop(paste(args[2], "should be .csv, .txt, .tsv or .rds!"))
 }
+if(!'out.prefix' %in% colnames(cmp)){
+    cmp$out.prefix <- paste(cmp$test.group, cmp$control.group, sep = '_vs_')
+}
+if(!'plot.title' %in% colnames(cmp)){
+    cmp$plot.title <- paste(cmp$test.group, cmp$control.group, sep = ' vs ')
+}
+
 tgt <- args[3]
 
 conp.bed.all <- list.files('conp/', full.names = T)
@@ -532,17 +541,16 @@ if (length(dp.list) > 0){
 
 if (length(dp.list) == 0){
     error_message <- c(
-        "No comparison was done.",
+        "No comparison was done for this target.",
         "Check the following: ",
         paste("Test and control groups in", args[2], "should match sample_groups in", args[1], "."),
         paste("At least one row in", args[2], "should be a valid comparison, i.e. both test and control groups are present in", args[1], ".")
         )
     write.table(
-        error_message, 'ERROR_MESSAGE.call_differential_peaks.txt', sep = '\n', quote=F, row.names = F, col.names = F
+        error_message, paste0(tgt, '.README.txt'), sep = '\n', quote=F, row.names = F, col.names = F
     )
     system('rm -r *_peaks/')
 }else{
     saveRDS(dp.list, paste(tgt, 'dp.rds', sep = '.'))
 }
-
 
