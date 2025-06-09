@@ -256,6 +256,7 @@ if (dir.exists('consensus_annotation')){
   
   
   dat$conp_ann <- lapply(ann.txt, function(fname){
+    if (file.size(fname) < 1){return(NULL)}
     read.delim(fname, header = T) %>%   
       subset(!is.na(Annotation)) %>% 
       mutate(
@@ -265,7 +266,8 @@ if (dir.exists('consensus_annotation')){
       dplyr::select(conp.id, genomic.location)
     
   }); names(dat$conp_ann) <- gsub('.annotation.txt','',basename(ann.txt))
-  
+  dat$conp_ann[sapply(dat$conp_ann, is.null)] <- NULL
+  if(length(dat$conp_ann)==0){dat$conp_ann <- NULL}
 }
 
 

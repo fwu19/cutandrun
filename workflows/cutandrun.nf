@@ -561,11 +561,12 @@ workflow CUTANDRUN {
     ch_rip = Channel.empty()
     ch_rep_bed = Channel.empty()
     if (params.run_local_peak_qc && params.workflow == "cutandrun"){
-        ch_gtf_ann = params.local_assets ? file("${params.local_assets}/${params.genome}/genes.proteinCoding_lncRNA.gtf") : ch_dummy_file
+        if(!params.genome_ann){params.genome_ann = params.genome}
+        ch_gtf_ann = params.local_assets ? file("${params.local_assets}/${params.genome_ann}/genes.proteinCoding_lncRNA.gtf") : ch_dummy_file
         QC_PEAKS(
             samplesheet,
             params.min_replicates,
-            params.genome,
+            params.genome_ann,
             ch_gtf_ann,
             ch_samtools_bam,
             ch_peaks_all,

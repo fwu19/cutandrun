@@ -11,9 +11,9 @@ process ANNOTATE_CONSENSUS_PEAKS {
     path (conp)
 
     output:
-    tuple path(conp), path ( "*.annotation.txt" ), emit: txt
+    tuple path(conp), path ( "*.annotation.txt" ), emit: txt, optional: true
     path ( gtf ), emit: gtf, optional: true
-    path ( "*" )
+    path ( "*" ), optional: true
 
     script:
     def gtf = gtf.baseName != 'dummy_file.txt' ? "$gtf" : ''

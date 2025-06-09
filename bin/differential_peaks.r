@@ -461,6 +461,8 @@ wrapper_one_conp <- function(ss, cmp, tgt, conp.bed, count.txts, fdr = 0.05, lfc
     ## generate count matrix ####
     cts <- generate_count_matrix(conp.bed, count.txts, ids = gsub('.*macs2_narrow_peaks.|.*macs2_broad_peaks.|.*seacr_peaks.|.fragmentCounts.txt', '', basename(count.txts)))
 
+    if (nrow(cts) < 10){ return (NULL)} # do not test if less than 10 peaks
+    
     ## create DGElist ####
     ssi <- ss %>%
         filter(id %in% colnames(cts)) %>%
