@@ -37,6 +37,8 @@ if ('nreps' %in% names(dat)){
       sample_replicate = paste0('replicate', sample_replicate)
       ) %>% 
     dplyr::select(id, group, caller, peak_type, sample_replicate, npeak)
+  
+  ## get statistics of the final set of original peaks
   npeaks_final <- bind_rows(lapply(
     split(npeaks, paste(npeaks$id, npeaks$caller)),
     function(x){
@@ -51,26 +53,26 @@ if ('nreps' %in% names(dat)){
     tidyr::pivot_wider(names_from = sample_replicate, values_from = npeak) 
   
   nreps <- dat$nreps%>% 
-    dplyr::select(group, caller, peak.count, ids) %>% 
+    dplyr::select(group, caller, peak.count, ids, output_file) %>% 
     dplyr::rename("replicated.peaks" = "peak.count") %>% 
     left_join(
       npeaks_final, by = c('group', 'caller')
     ) %>% 
-    dplyr::relocate(ids, peak_type, .after=last_col())
+    dplyr::relocate(ids, peak_type, output_file, .after=last_col())
   
   
   nreps  %>% 
-  DT::datatable(
-  class = 'cell-border stripe', 
-  rownames = T,  
-  filter = 'top', 
-  editable = F, 
-  extensions = 'Buttons', 
-  options = list(
-    pageLength = 10, 
-    dom = 'Bfrtip',
-    buttons = c('csv')
-  ))
+    DT::datatable(
+      class = 'cell-border stripe', 
+      rownames = T,  
+      filter = 'top', 
+      editable = F, 
+      extensions = 'Buttons', 
+      options = list(
+        pageLength = 10, 
+        dom = 'Bfrtip',
+        buttons = c('csv')
+      ))
 }
 ```
 

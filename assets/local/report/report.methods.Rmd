@@ -3,7 +3,7 @@
 
 (Tool references are provided as hyperlinks.)
 
-Read quality was examined using [FastQC](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/).
+Trim Galore (https://github.com/FelixKrueger/TrimGalore) was used to examine read quality and trim adapters.
 Reads were aligned to the reference genome using [Bowtie2](https://www.nature.com/articles/nmeth.1923).
 Genome coverage profiles were generated using [bedtools genomecov](https://academic.oup.com/bioinformatics/article/26/6/841/244688).
 Both [MACS2](https://genomebiology.biomedcentral.com/articles/10.1186/gb-2008-9-9-r137) and [SEACR](https://doi.org/10.1186/s13072-019-0287-4) were used to call peaks from a sample.

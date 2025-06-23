@@ -54,7 +54,7 @@ if (anno_readme && file(anno_readme).exists()) {
 
 // Stage dummy file to be used as an optional input where required
 ch_dummy_file = file("$projectDir/assets/dummy_file.txt", checkIfExists: true)
-ch_dummy_csv = file("$projectDir/assets/local/dummy_file.csv", checkIfExists: true)
+ch_dummy_csv = file("$projectDir/assets/dummy_file.csv", checkIfExists: true)
 
 // Stage awk files for parsing log files
 ch_bt2_to_csv_awk     = file("$projectDir/bin/bt2_report_to_csv.awk"    , checkIfExists: true)
@@ -151,20 +151,26 @@ include { CUSTOM_DUMPSOFTWAREVERSIONS                                  } from ".
     IMPORT CUSTOM MODULES/SUBWORKFLOWS
 ========================================================================================
 */
-include { INPUT_CHECK                   } from "../subworkflows/local2/input_check"
-include { CALL_PEAKS                    } from '../subworkflows/local2/call_peaks'
-include { CALL_PEAKS_PROCESS_CONTROLS   } from '../subworkflows/local2/call_peaks_process_controls'
-include { COMPUTE_GENOMECOVERAGE        } from "../subworkflows/local2/compute_genomecoverage"
-include { QC_READS                    } from '../subworkflows/local2/qc_reads'
-include { QC_PEAKS                    } from '../subworkflows/local2/qc_peaks'
-include { QC_PROCESS_CONTROLS                    } from '../subworkflows/local2/qc_process_controls'
+include { INPUT_CHECK                                                        } from "../subworkflows/local2/input_check"
+include { IGG_CHECK                                                          } from '../subworkflows/local2/igg_check'
+include { CALL_SEACR_PEAKS                                                   } from '../subworkflows/local2/call_seacr_peaks'
+include { CALL_MACS2_PEAKS                                                   } from '../subworkflows/local2/call_macs2_peaks'
+include { CALL_PEAKS_PROCESS_CONTROLS                                        } from '../subworkflows/local2/call_peaks_process_controls'
+include { COMPUTE_GENOMECOVERAGE                                             } from "../subworkflows/local2/compute_genomecoverage"
+include { QC_READS                                                           } from '../subworkflows/local2/qc_reads'
+include { QC_PEAKS                                                           } from '../subworkflows/local2/qc_peaks'
+include { QC_PEAKS as QC_PEAKS_COMB_IGG                                      } from '../subworkflows/local2/qc_peaks'
+include { QC_PROCESS_CONTROLS                                                } from '../subworkflows/local2/qc_process_controls'
 
-include { GET_FASTQ_PATHS               } from '../modules/local2/get_fastq_paths'
-include { MULTIQC                       } from '../modules/local2/multiqc'
-include { GENERATE_REPORT                  } from '../modules/local2/generate_report'
-include { GENERATE_REPORT_PROCESS_CONTROLS } from '../modules/local2/generate_report_process_controls'
-include { READS_IN_CONSENSUS_PEAKS      } from '../modules/local2/reads_in_consensus_peaks'
-include { DIFFERENTIAL_PEAKS            } from '../modules/local2/differential_peaks'
+include { GET_FASTQ_PATHS                                                    } from '../modules/local2/get_fastq_paths'
+include { MULTIQC                                                            } from '../modules/local2/multiqc'
+include { READS_IN_CONSENSUS_PEAKS                                           } from '../modules/local2/reads_in_consensus_peaks'
+include { READS_IN_CONSENSUS_PEAKS as READS_IN_CONSENSUS_PEAKS_COMB_IGG      } from '../modules/local2/reads_in_consensus_peaks'
+include { DIFFERENTIAL_PEAKS                                                 } from '../modules/local2/differential_peaks'
+include { DIFFERENTIAL_PEAKS as DIFFERENTIAL_PEAKS_COMB_IGG                  } from '../modules/local2/differential_peaks'
+include { GENERATE_REPORT                                                    } from '../modules/local2/generate_report'
+include { GENERATE_REPORT as GENERATE_REPORT_COMB_IGG                        } from '../modules/local2/generate_report'
+include { GENERATE_REPORT_PROCESS_CONTROLS                                   } from '../modules/local2/generate_report_process_controls'
 
 
 
@@ -231,6 +237,17 @@ workflow CUTANDRUN {
                     return [ meta, fastq.flatten() ]
         }
         .set { ch_fastq }
+
+        samplesheet_combine_igg = Channel.empty()
+        meta_combine_igg = Channel.empty()
+        if (params.run_combine_igg){
+            IGG_CHECK(
+                samplesheet,
+                params.igg_group
+            )
+            samplesheet_combine_igg = IGG_CHECK.out.samplesheet
+            meta_combine_igg = IGG_CHECK.out.meta
+        }
     }
 
 
@@ -509,22 +526,24 @@ workflow CUTANDRUN {
     /*
      * SUBWORKFLOW: Call peaks from individual samples
      */
-    ch_peaks_all = Channel.empty()
-    ch_peaks_final = Channel.empty()
     if(params.run_peak_calling & params.workflow == "cutandrun") {
 
-        CALL_PEAKS (
+        CALL_SEACR_PEAKS (
             ch_bedgraph_markdup,
             ch_bedgraph_dedup,
-            ch_samtools_bam_markdup
+            params.run_combine_igg,
+            meta_combine_igg
         )
-        ch_peaks_all = CALL_PEAKS.out.peaks_all
-        // ch_peaks_all.view()
-        // [ meta, [peaks] ]
 
-        ch_peaks_final = CALL_PEAKS.out.peaks_final
-        // ch_peaks_final.view()
-        // [ meta, [peaks] ]
+        ch_software_versions = ch_software_versions.mix(CALL_SEACR_PEAKS.out.versions)
+
+        CALL_MACS2_PEAKS (
+            ch_samtools_bam_markdup,
+            params.run_combine_igg,
+            meta_combine_igg
+        )
+        ch_software_versions = ch_software_versions.mix(CALL_MACS2_PEAKS.out.versions)
+
     }
 
     if(params.run_peak_calling & params.workflow == "process_controls") {
@@ -544,46 +563,113 @@ workflow CUTANDRUN {
         // [ meta, [peaks] ]
     }
 
-    ch_read_metrics = Channel.empty()
-    ch_frag_lens = Channel.empty()
     if (params.run_local_read_qc){
         QC_READS(
             ch_multiqc_data,
             ch_samtools_bam
         )
-        ch_read_metrics = QC_READS.out.read_metrics
-        ch_frag_lens = QC_READS.out.frag_lens
 
     }
 
-    ch_orig_csv = Channel.empty()
-    ch_orig_widths = Channel.empty()
-    ch_rip = Channel.empty()
-    ch_rep_bed = Channel.empty()
+    /*
+    * QC peaks
+    */
     if (params.run_local_peak_qc && params.workflow == "cutandrun"){
+        CALL_MACS2_PEAKS.out.narrow_filtered
+            .concat(
+                CALL_MACS2_PEAKS.out.narrow_igg,
+                CALL_MACS2_PEAKS.out.narrow_noigg,
+                CALL_MACS2_PEAKS.out.broad_filtered,
+                CALL_MACS2_PEAKS.out.broad_igg,
+                CALL_MACS2_PEAKS.out.broad_noigg,
+                CALL_SEACR_PEAKS.out.seacr_filtered,
+                CALL_SEACR_PEAKS.out.seacr_igg,
+                CALL_SEACR_PEAKS.out.seacr_noigg
+        )
+        .groupTuple(by: 0)
+        .set { ch_peaks_all}
+        // ch_peaks_all.view()
+        // [ [meta], [path(peak1), path(peak2), ...] ]
+
+
+        CALL_MACS2_PEAKS.out.narrow_filtered
+            .mix( CALL_MACS2_PEAKS.out.narrow_noigg.filter(it -> it[0].control_group == "") )
+            .concat (
+            CALL_MACS2_PEAKS.out.broad_filtered
+                .mix( CALL_MACS2_PEAKS.out.broad_noigg.filter(it -> it[0].control_group == "") ),
+            CALL_SEACR_PEAKS.out.seacr_filtered
+                .mix( CALL_SEACR_PEAKS.out.seacr_noigg.filter(it -> it[0].control_group == "") )
+            )
+            .groupTuple(by: 0)
+            .set { ch_peaks_final}
+        // ch_peaks_final.view()
+        // [ [meta], path(macs2_narrow_peak), path(macs2_broad_peak), path(seacr_peak) ]
+
         if(!params.genome_ann){params.genome_ann = params.genome}
-        ch_gtf_ann = params.local_assets ? file("${params.local_assets}/${params.genome_ann}/genes.proteinCoding_lncRNA.gtf") : ch_dummy_file
         QC_PEAKS(
             samplesheet,
             params.min_replicates,
             params.genome_ann,
-            ch_gtf_ann,
+            params.local_assets ? file("${params.local_assets}/${params.genome_ann}/genes.proteinCoding_lncRNA.gtf") : ch_dummy_file,
             ch_samtools_bam,
             ch_peaks_all,
             ch_peaks_final
 
         )
-        ch_rip = QC_PEAKS.out.rip
-        ch_orig_csv = QC_PEAKS.out.orig_csv
-        ch_orig_widths= QC_PEAKS.out.orig_widths
-        ch_rep_bed= QC_PEAKS.out.rep_bed
-        ch_rep_csv= QC_PEAKS.out.rep_csv
-        ch_con_bed= QC_PEAKS.out.con_bed
-        ch_con_csv= QC_PEAKS.out.con_csv
-        ch_conp_ann= QC_PEAKS.out.conp_ann
 
     }
 
+    /*
+    * QC peaks with combined IgG
+    */
+    if (params.run_local_peak_qc && params.workflow == "cutandrun" && params.run_combine_igg){
+        CALL_MACS2_PEAKS.out.narrow_comb_igg_filtered
+            .concat(
+                CALL_MACS2_PEAKS.out.narrow_comb_igg,
+                CALL_MACS2_PEAKS.out.narrow_noigg,
+                CALL_MACS2_PEAKS.out.broad_comb_igg_filtered,
+                CALL_MACS2_PEAKS.out.broad_comb_igg,
+                CALL_MACS2_PEAKS.out.broad_noigg,
+                CALL_SEACR_PEAKS.out.seacr_comb_igg_filtered,
+                CALL_SEACR_PEAKS.out.seacr_comb_igg,
+                CALL_SEACR_PEAKS.out.seacr_noigg
+        )
+        .groupTuple(by: 0)
+        .set { ch_peaks_comb_igg_all}
+        // ch_peaks_all.view()
+        // [ [meta], [path(peak1), path(peak2), ...] ]
+
+
+        CALL_MACS2_PEAKS.out.narrow_comb_igg_filtered
+            .mix( CALL_MACS2_PEAKS.out.narrow_noigg.filter(it -> it[0].control_group == "") )
+            .concat (
+            CALL_MACS2_PEAKS.out.broad_comb_igg_filtered
+                .mix( CALL_MACS2_PEAKS.out.broad_noigg.filter(it -> it[0].control_group == "") ),
+            CALL_SEACR_PEAKS.out.seacr_comb_igg_filtered
+                .mix( CALL_SEACR_PEAKS.out.seacr_noigg.filter(it -> it[0].control_group == "") )
+            )
+            .groupTuple(by: 0)
+            .set { ch_peaks_comb_igg_final}
+        // ch_peaks_final.view()
+        // [ [meta], path(macs2_narrow_peak), path(macs2_broad_peak), path(seacr_peak) ]
+
+        if(!params.genome_ann){params.genome_ann = params.genome}
+        QC_PEAKS_COMB_IGG(
+            samplesheet_combine_igg,
+            params.min_replicates,
+            params.genome_ann,
+            params.local_assets ? file("${params.local_assets}/${params.genome_ann}/genes.proteinCoding_lncRNA.gtf") : ch_dummy_file,
+            ch_samtools_bam,
+            ch_peaks_comb_igg_all,
+            ch_peaks_comb_igg_final
+
+        )
+
+    }
+
+    /*
+    * QC peaks for process controls
+    */
     if (params.run_local_peak_qc && params.workflow == "process_controls"){
         ch_hiconf_peaks = params.hiconf_peaks ? Channel.fromPath("${params.hiconf_peaks}", type: "dir", checkIfExists: true) : Channel.empty()
         QC_PROCESS_CONTROLS(
@@ -594,104 +680,134 @@ workflow CUTANDRUN {
             ch_peaks_final,
             ch_hiconf_peaks.ifEmpty([])
         )
-        ch_rip = QC_PROCESS_CONTROLS.out.rip
-        ch_orig_csv = QC_PROCESS_CONTROLS.out.orig_csv
-        ch_orig_widths= QC_PROCESS_CONTROLS.out.orig_widths
-        ch_rep_csv= QC_PROCESS_CONTROLS.out.rep_csv
 
     }
 
-    ch_conp_reads = Channel.empty()
-    ch_dp = Channel.empty()
+    /*
+    * Call differential peaks
+    */
     if (params.run_local_dp){
-            /*
-            * Count reads in consensus peaks
-            */
-            // ch_samtools_bam.view()
-            ch_con_bed
+        // Count reads in consensus peaks
+        READS_IN_CONSENSUS_PEAKS(
+            QC_PEAKS.out.con_bed
                 .cross (
-                    ch_samtools_bam
-                        .filter { it[0].target != "IgG" }
-                        .map { it -> [ it[0].target, it ] }
+                        ch_samtools_bam
+                            .filter { it[0].target != "IgG" }
+                            .map { it -> [ it[0].target, it ] }
                 )
                 .map { it -> [ it[1][1][0], it[1][1][1], it[0][1] ] }
-                .set { ch_bam_conp }
-            //ch_bam_conp.view()
-            // [ meta, bam, [conp] ]
+        )
 
-
-            READS_IN_CONSENSUS_PEAKS(
-                ch_bam_conp
-            )
-            ch_conp_reads = READS_IN_CONSENSUS_PEAKS.out.count
-            // ch_conp_reads.view()
-            // [ target, [path/to/fragmentCounts.txt] ]
-
-            ch_conp_reads
+        // if --comparison is a dummy file or empty file is used, throw a warning and continue.
+        // if file has contents but not a correct format, throw an error.
+        DIFFERENTIAL_PEAKS(
+            READS_IN_CONSENSUS_PEAKS.out.count
                 .groupTuple( by: 0 )
                 .map { it -> [ it[0], it[1].flatten().collect() ]}
-                .cross ( ch_con_bed )
+                .cross ( QC_PEAKS.out.con_bed )
                 .map { it -> [ it[0][0], it[0][1], it[1][1] ]}
-                .set { ch_tgt_reads_conp }
-            //ch_tgt_reads_conp.view()
-            // [ target, [read_count], [conp] ]
-
-            /*
-            * Call differential peaks
-            */
-            ch_comparison = params.comparison ? Channel.fromPath( params.comparison, checkIfExists: true ) : ch_dummy_file
-            // if dummy file or empty file is used, throw a warning and continue.
-            // if file has contents but not a correct format, throw an error.
-            DIFFERENTIAL_PEAKS(
-                ch_tgt_reads_conp
-                    .combine(samplesheet)
-                    .combine(ch_comparison)
-            )
-            ch_dp = DIFFERENTIAL_PEAKS.out.data
-            //ch_dp.view()
-            // [ path(*.{rds,csv}) ]
+                .combine(samplesheet)
+                .combine(params.comparison ? Channel.fromPath( params.comparison, checkIfExists: true ) : ch_dummy_csv)
+        )
 
     }
 
+    /*
+    * Call differential peaks with combined IgG
+    */
+    if (params.run_local_dp & params.run_combine_igg){
+        // Count reads in consensus peaks
+        READS_IN_CONSENSUS_PEAKS_COMB_IGG(
+            QC_PEAKS_COMB_IGG.out.con_bed
+                .cross (
+                        ch_samtools_bam
+                            .filter { it[0].target != "IgG" }
+                            .map { it -> [ it[0].target, it ] }
+                )
+                .map { it -> [ it[1][1][0], it[1][1][1], it[0][1] ] }
+        )
+
+        // if --comparison is a dummy file or empty file is used, throw a warning and continue.
+        // if file has contents but not a correct format, throw an error.
+        DIFFERENTIAL_PEAKS_COMB_IGG(
+            READS_IN_CONSENSUS_PEAKS_COMB_IGG.out.count
+                .groupTuple( by: 0 )
+                .map { it -> [ it[0], it[1].flatten().collect() ]}
+                .cross ( QC_PEAKS_COMB_IGG.out.con_bed )
+                .map { it -> [ it[0][0], it[0][1], it[1][1] ]}
+                .combine(samplesheet)
+                .combine(params.comparison ? Channel.fromPath( params.comparison, checkIfExists: true ) : ch_dummy_file)
+        )
+
+    }
+
+    /*
+    * Generate report for experimental data
+    */
     if (params.run_local_report & params.workflow == "cutandrun"){
             /*
             * Make plots for report
             */
-            ch_report_rmd = params.local_assets ? Channel.fromPath("${params.local_assets}/report/", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
+
             GENERATE_REPORT(
                 samplesheet,
-                ch_read_metrics.ifEmpty([]),
-                ch_frag_lens.collect{it[1]}.ifEmpty([]),
-                ch_orig_csv.collect{it[1]}.ifEmpty([]),
-                ch_orig_widths.collect{it[1]}.ifEmpty([]),
-                ch_rip.collect{it[1]}.ifEmpty([]),
-                ch_rep_csv.collect{it[1]}.ifEmpty([]),
-                ch_con_csv.collect{it[1]}.ifEmpty([]),
-                ch_con_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
-                ch_conp_ann.collect{it[1]}.ifEmpty([]),
-                ch_dp.flatten().collect().ifEmpty([]),
-                ch_report_rmd
+                QC_READS.out.read_metrics.ifEmpty([]),
+                QC_READS.out.frag_lens.collect{it[1]}.ifEmpty([]),
+                QC_PEAKS.out.orig_csv.collect{it[1]}.ifEmpty([]),
+                QC_PEAKS.out.orig_widths.collect{it[1]}.ifEmpty([]),
+                QC_PEAKS.out.rip.collect{it[1]}.ifEmpty([]),
+                QC_PEAKS.out.rep_csv.collect{it[1]}.ifEmpty([]),
+                QC_PEAKS.out.con_csv.collect{it[1]}.ifEmpty([]),
+                QC_PEAKS.out.con_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
+                QC_PEAKS.out.conp_ann.collect{it[1]}.ifEmpty([]),
+                DIFFERENTIAL_PEAKS.out.data.flatten().collect().ifEmpty([]),
+                params.local_assets ? Channel.fromPath("${params.local_assets}/report/", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
             )
 
 
     }
 
-    if (params.run_local_report & params.workflow == "process_controls"){
+    /*
+    * Generate report for experimental data with combined IgG
+    */
+    if (params.run_local_report & params.workflow == "cutandrun" & params.run_combine_igg){
             /*
             * Make plots for report
             */
-            ch_report_rmd = params.report_rmd ? Channel.fromPath("${params.report_rmd}", checkIfExists: true) : Channel.empty()
-            ch_saved_data = params.saved_data ? Channel.fromPath("${params.saved_data}", type: "dir", checkIfExists: true) : Channel.empty()
+
+            GENERATE_REPORT_COMB_IGG(
+                samplesheet,
+                QC_READS.out.read_metrics.ifEmpty([]),
+                QC_READS.out.frag_lens.collect{it[1]}.ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.orig_csv.collect{it[1]}.ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.orig_widths.collect{it[1]}.ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.rip.collect{it[1]}.ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.rep_csv.collect{it[1]}.ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.con_csv.collect{it[1]}.ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.con_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.conp_ann.collect{it[1]}.ifEmpty([]),
+                DIFFERENTIAL_PEAKS_COMB_IGG.out.data.flatten().collect().ifEmpty([]),
+                params.local_assets ? Channel.fromPath("${params.local_assets}/report/", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
+            )
+
+
+    }
+
+    /*
+    * Generate report for process controls
+    */
+    if (params.run_local_report & params.workflow == "process_controls"){
+
             GENERATE_REPORT_PROCESS_CONTROLS(
                 samplesheet,
-                ch_read_metrics.ifEmpty([]),
-                ch_frag_lens.collect{it[1]}.ifEmpty([]),
-                ch_orig_csv.collect{it[1]}.ifEmpty([]),
-                ch_orig_widths.collect{it[1]}.ifEmpty([]),
-                ch_rip.collect{it[1]}.ifEmpty([]),
-                ch_rep_csv.collect{it[1]}.ifEmpty([]),
-                ch_saved_data.ifEmpty([]),
-                ch_report_rmd
+                QC_READS.out.read_metrics.ifEmpty([]),
+                QC_READS.out.frag_lens.collect{it[1]}.ifEmpty([]),
+                QC_PROCESS_CONTROLS.out.orig_csv.collect{it[1]}.ifEmpty([]),
+                QC_PROCESS_CONTROLS.out.orig_widths.collect{it[1]}.ifEmpty([]),
+                QC_PROCESS_CONTROLS.out.rip.collect{it[1]}.ifEmpty([]),
+                QC_PROCESS_CONTROLS.out.rep_csv.collect{it[1]}.ifEmpty([]),
+                params.saved_data ? Channel.fromPath("${params.saved_data}", type: "dir", checkIfExists: true) : Channel.empty(),
+                params.report_rmd ? Channel.fromPath("${params.report_rmd}", checkIfExists: true) : Channel.empty()
             )
 
 

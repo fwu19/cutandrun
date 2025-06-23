@@ -74,7 +74,7 @@ if (dir.exists('fragment_lengths')){
 {
 ## get metrics of the entire set of original peaks ####
 if (dir.exists('original_peaks')){
-  peak.metrics <- list.files('original_peaks', full.names = T, pattern = 'original_peaks')
+  peak.metrics <- list.files('original_peaks', full.names = T, pattern = 'original_peaks', recursive = T)
   if (length(peak.metrics) > 0){
     dat$npeaks <- bind_rows(lapply(
       peak.metrics, 
@@ -97,7 +97,7 @@ if (dir.exists('original_peaks')){
 
 ## get metrics of the final set of original peak widths  ####
 if (dir.exists('original_peak_widths')){
-  peak.widths <- list.files('original_peak_widths', full.names = T, pattern = 'original_peak_widths')
+  peak.widths <- list.files('original_peak_widths', full.names = T, pattern = 'original_peak_widths', recursive = T)
   if (length(peak.widths) > 0){
     dat$wpeaks <- bind_rows(lapply(
       peak.widths,       
@@ -120,7 +120,7 @@ if (dir.exists('original_peak_widths')){
 }
 ## get reads in peak ####
 if (dir.exists('reads_in_peak')){
-  peak.reads <- list.files('reads_in_peak', full.names = T, pattern = 'reads_in_peak')
+  peak.reads <- list.files('reads_in_peak', full.names = T, pattern = 'reads_in_peak', recursive = T)
   dat$frip <- bind_rows(lapply(
     peak.reads,
     function(fname){
@@ -155,7 +155,7 @@ if (dir.exists('reads_in_peak')){
 {
 ## get metrics of replicated peaks ####
 if (dir.exists('replicated_peaks')){
-  rep.metrics <- list.files('replicated_peaks', full.names = T, pattern = 'replicated_peaks')
+  rep.metrics <- list.files('replicated_peaks', full.names = T, pattern = 'replicated_peaks', recursive = T)
   if (length(rep.metrics) > 0){
     dat$nreps <- bind_rows(lapply(rep.metrics, read.csv)) %>% 
       left_join(
@@ -169,7 +169,7 @@ if (dir.exists('replicated_peaks')){
 ## get metrics of consensus peaks ####
 if (dir.exists('consensus_peaks')){
   
-  conp.metrics <- list.files('consensus_peaks', full.names = T, pattern = 'consensus_peaks')
+  conp.metrics <- list.files('consensus_peaks', full.names = T, pattern = 'consensus_peaks', recursive = T)
   if (length(conp.metrics) > 0){
     dat$nconps <- bind_rows(lapply(conp.metrics, read.csv))
   }
@@ -177,7 +177,7 @@ if (dir.exists('consensus_peaks')){
 
 ## get consenus peaks ####
 if (dir.exists('consensus_beds')){
-  conp.bed <- list.files('consensus_beds/', full.names = T, pattern = '.bed')
+  conp.bed <- list.files('consensus_beds/', full.names = T, pattern = '.bed', recursive = T)
 
   ## Compare consensus peaks across sample groups ####  
   conps <- lapply(
@@ -278,7 +278,7 @@ saveRDS(dat, 'data.rds')
 
 ## cat dp.rds ####
 if (dir.exists('differential_peaks')){
-  dp.rds <- list.files('differential_peaks', full.names = T)
+  dp.rds <- list.files('differential_peaks', full.names = T, recursive = T)
   if (length(dp.rds) > 0){
     dp <- do.call(c, lapply(
       dp.rds, readRDS

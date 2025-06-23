@@ -1,17 +1,17 @@
-process SAMPLESHEET_CHECK {
-    module = ['fhR/4.1.2-foss-2021b']
+process GROUP_IGG {
 
     label 'process_single'
 
-    tag "Generate $samplesheet"
+    tag "Group IgG"
+
+    module = ['fhR/4.1.2-foss-2021b']
 
     input:
-    path ( samplesheet )
-    path ( metadata )
-    val (workflow)
+    path ( "samplesheet.valid.csv" )
+    val (igg_group)
 
     output:
-    path 'samplesheet.valid.csv'        , emit: csv
+    path ('samplesheet.valid.combine_igg.csv'), emit: csv
     path  "versions.yml", emit: versions
 
     when:
@@ -19,7 +19,7 @@ process SAMPLESHEET_CHECK {
 
     script:
     """
-    samplesheet_check.r $samplesheet samplesheet.valid.csv $workflow $metadata
+    group_igg.r samplesheet.valid.csv samplesheet.valid.combine_igg.csv $igg_group
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -27,3 +27,4 @@ process SAMPLESHEET_CHECK {
     END_VERSIONS
     """
 }
+

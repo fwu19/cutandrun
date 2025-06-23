@@ -130,32 +130,26 @@ add_metadata_process_controls <- function(ss){
 args <- as.vector(commandArgs(T))
 in_csv <- args[1]
 out_csv <- args[2]
-workflow <- args[3]
-meta_csv <- args[4]
+igg_group <- args[3]
 
 
-## generate sample sheet ####
-ss <- read.csv(in_csv, colClasses = 'character')
-
-## check single end fastq
-if (!'id' %in% colnames(ss)){
-    stop ( 'Missing column id!' )
-}else if ( ! 'fastq_1' %in% colnames(ss)){
-    stop ( 'Missing column fastq_1!' )
-}else if ( ! 'fastq_2' %in% colnames(ss)){
-    ss$fastq_2 <- ''
+ss <- read.csv(in_csv)
+if (igg_group == 'group'){
+    ss$igg_id <- paste0(ss$sample_group, '_IgG')
+}else if (igg_group == 'all'){
+    ss$igg_id <- 'combined_IgG'
+}else if (igg_group %in% colnames(ss)){
+    ss$igg_id <- paste0(ss[,igg_group], '_IgG')
+}else{
+    stop("--igg_group ['group', 'all', column_name_in_samplesheet]\n")
 }
-ss <- ss %>% 
-    add_col('fastq_2', "") %>% 
-    mutate(single_end = ifelse(fastq_2 == "", 'true', 'false'))
+ss$control <- ifelse(ss$is_control == "true", "", ss$igg_id)
+ss$control_group <- ifelse(ss$is_control == 'true', ss$igg_id, ss$control)
+ss$igg_id <- NULL
 
-## add metadata if available
-if (workflow == "cutandrun"){
-    ss <- add_metadata(ss, meta_csv)
-}else if (workflow == "process_controls"){
-    ss <- add_metadata_process_controls(ss)
-}
-
-## write sample sheet ####
 ss %>% 
     write.table(out_csv, sep = ',', quote = F, row.names = F)
+
+
+
+

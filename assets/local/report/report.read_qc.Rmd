@@ -24,7 +24,7 @@ if (length(qc_read) == 0){
 }
 
 ## targeted proteins
-for (tgt in c(targets, 'IgG')){
+for (tgt in targets){
   p1 <- wrap_plots(
     c(lapply(
       qc_read, 
@@ -53,7 +53,39 @@ for (tgt in c(targets, 'IgG')){
   
 }
 
+## controls like IgG and input
+controls <- setdiff(meta$target, targets)
+if (length(controls) > 0){
+  for (tgt in controls){
+  p1 <- wrap_plots(
+    c(lapply(
+      qc_read, 
+      function(i){
+        if (i %in% names(figs)){
+          figs[[i]][[tgt]]
+        }else{
+          ggplot(data.frame(x=0,y=0))+
+          geom_blank()+
+            theme_minimal()
+        }
+        
+      }), list(guide_area())), 
+    ncol = 3, guides = 'collect')+
+    plot_annotation(tag_levels = 'A')+
+    plot_layout(design = c(
+      area(1,1,4,9), area(1,11,4,19), area(1,21,4,29), 
+      area(6,1,9,9), area(6,11,9,19), area(6,21,9,29), 
+      area(11,1,19,9), area(11,11,19,19)
+    ))
+  
+  cat("\n\n")
+  cat("####", tgt, "\n\n")
+  print(p1)
+  cat("\n\n")
+  
+}
 
+}
 ```
 
 

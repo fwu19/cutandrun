@@ -32,9 +32,9 @@ workflow COMPUTE_GENOMECOVERAGE {
     * Convert markdup.bam files to markdup.unnormalized.bedgraph
     * CHANNEL: Assign scale factor of 1
     */
-    ch_bam_markdup.map { row ->
-            [ row[0], row[1], 1 ]
-        }
+    ch_bam_markdup
+        .filter ( it -> it[0].is_control == false )
+        .map { row -> [ row[0], row[1], 1 ] }
         .set { ch_bam_markdup_scale_factor_unnorm }
         //ch_bam_markdup_scale_factor_unnorm | view
 
@@ -53,9 +53,9 @@ workflow COMPUTE_GENOMECOVERAGE {
     * Convert dedup.bam files to dedup.unnormalized.bedgraph
     * CHANNEL: Assign scale factor of 1
     */
-    ch_bam_dedup.map { row ->
-            [ row[0], row[1], 1 ]
-        }
+    ch_bam_dedup
+        .filter ( it -> it[0].is_control == true )
+        .map { row -> [ row[0], row[1], 1 ] }
         .set { ch_bam_dedup_scale_factor_unnorm }
         //ch_bam_dedup_scale_factor_unnorm | view
 
@@ -168,6 +168,7 @@ workflow COMPUTE_GENOMECOVERAGE {
         .map { row -> [row[0].id, row ].flatten()}
         .join ( ch_bai_dedup.map { row -> [row[0].id, row ].flatten()} )
         .map { row -> [row[1], row[2], row[4], 1] }
+        .filter ( it -> it[0].is_control == true )
         .set { ch_bam_bai_dedup_scale_factor }
     // EXAMPLE CHANNEL STRUCT: [[META], BAM, BAI, SCALE_FACTOR]
     //ch_bam_bai_dedup_scale_factor | view

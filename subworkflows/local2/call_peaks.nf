@@ -11,8 +11,8 @@ include { MACS2_CALLPEAK as MACS2_CALLPEAK_NOIGG_BROAD                  } from "
 include { BEDTOOLS_INTERSECT as SEACR_PEAKS_BEDTOOLS_INTERSECT          } from "../../modules/nf-core/bedtools/intersect/main"
 include { BEDTOOLS_INTERSECT as MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT   } from "../../modules/nf-core/bedtools/intersect/main"
 include { BEDTOOLS_INTERSECT as MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT    } from "../../modules/nf-core/bedtools/intersect/main"
-include { FILTER_PEAKS as MACS2_PEAKS_NARROW_FILTER                                        } from "../../modules/local2/filter_peaks"
-include { FILTER_PEAKS as MACS2_PEAKS_BROAD_FILTER                                        } from "../../modules/local2/filter_peaks"
+include { FILTER_PEAKS as MACS2_PEAKS_NARROW_FILTER                     } from "../../modules/local2/filter_peaks"
+include { FILTER_PEAKS as MACS2_PEAKS_BROAD_FILTER                      } from "../../modules/local2/filter_peaks"
 
 
 workflow CALL_PEAKS {
@@ -293,5 +293,7 @@ workflow CALL_PEAKS {
     versions = ch_versions
     peaks_all = ch_peaks_all
     peaks_final = ch_peaks_final
-
+    macs2_noigg_narrow = ch_macs2_peaks_noigg_narrow.no_control
+    macs2_noigg_broad = ch_macs2_peaks_noigg_broad.no_control
+    seacr_noigg = ch_seacr_peaks_noigg.no_control
 }
