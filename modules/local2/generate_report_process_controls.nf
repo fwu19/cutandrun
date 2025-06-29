@@ -14,7 +14,7 @@ process GENERATE_REPORT_PROCESS_CONTROLS {
     path( "reads_in_peak/*" )
     path( "replicated_peaks/*" )
     path( "*" )
-    path( rmd )
+    path( "report/*" )
 
     output:
     path( "*.{rds,html,Rmd}" ), optional: true
@@ -22,7 +22,8 @@ process GENERATE_REPORT_PROCESS_CONTROLS {
     script:
     """
     prepare_report_process_controls.r
-    render_report.r ${rmd}
+    mv report/*.Rmd .
+    render_report.r *.Rmd
 
     """
 }

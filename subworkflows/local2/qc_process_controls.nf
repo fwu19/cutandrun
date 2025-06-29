@@ -5,7 +5,7 @@
 include { READS_IN_PEAK             } from '../../modules/local2/reads_in_peak'
 include { ORIGINAL_PEAKS                } from '../../modules/local2/original_peaks'
 include { ORIGINAL_PEAK_WIDTHS          } from '../../modules/local2/original_peak_widths'
-include { REPLICATED_HICONF_PEAKS              } from '../../modules/local2/replicated_high_confidence_peaks'
+include { RECALL_REFERENCE_PEAKS              } from '../../modules/local2/recall_reference_peaks'
 
 workflow QC_PROCESS_CONTROLS {
     take:
@@ -61,11 +61,11 @@ workflow QC_PROCESS_CONTROLS {
         /*
         * Generate replicated peaks and collect metrics
         */
-        REPLICATED_HICONF_PEAKS(
+        RECALL_REFERENCE_PEAKS(
                 ch_peaks_final
                     .combine(ch_hiconf_peaks)
         )
-        ch_rep_csv = REPLICATED_HICONF_PEAKS.out.csv
+        ch_rep_csv = RECALL_REFERENCE_PEAKS.out.csv
         //ch_rep_bed.view()
         // [ target, [peaks] ]
 

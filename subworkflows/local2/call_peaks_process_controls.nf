@@ -4,15 +4,15 @@
 
 include { SEACR_CALLPEAK as SEACR_CALLPEAK_IGG                          } from "../../modules/nf-core/seacr/callpeak/main"
 include { SEACR_CALLPEAK as SEACR_CALLPEAK_NOIGG                        } from "../../modules/nf-core/seacr/callpeak/main"
-include { MACS2_CALLPEAK as MACS2_CALLPEAK_IGG_NARROW                   } from "../../modules/nf-core/macs2/callpeak/main"
-include { MACS2_CALLPEAK as MACS2_CALLPEAK_NOIGG_NARROW                 } from "../../modules/nf-core/macs2/callpeak/main"
-include { MACS2_CALLPEAK as MACS2_CALLPEAK_IGG_BROAD                    } from "../../modules/nf-core/macs2/callpeak/main"
-include { MACS2_CALLPEAK as MACS2_CALLPEAK_NOIGG_BROAD                  } from "../../modules/nf-core/macs2/callpeak/main"
-include { BEDTOOLS_INTERSECT as SEACR_PEAKS_BEDTOOLS_INTERSECT          } from "../../modules/nf-core/bedtools/intersect/main"
-include { BEDTOOLS_INTERSECT as MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT   } from "../../modules/nf-core/bedtools/intersect/main"
-include { BEDTOOLS_INTERSECT as MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT    } from "../../modules/nf-core/bedtools/intersect/main"
-include { FILTER_PEAKS as MACS2_PEAKS_NARROW_FILTER                                        } from "../../modules/local2/filter_peaks"
-include { FILTER_PEAKS as MACS2_PEAKS_BROAD_FILTER                                        } from "../../modules/local2/filter_peaks"
+include { MACS2_CALLPEAK as MACS2_NARROW_IGG                   } from "../../modules/nf-core/macs2/callpeak/main"
+include { MACS2_CALLPEAK as MACS2_NARROW_NOIGG                 } from "../../modules/nf-core/macs2/callpeak/main"
+include { MACS2_CALLPEAK as MACS2_BROAD_IGG                    } from "../../modules/nf-core/macs2/callpeak/main"
+include { MACS2_CALLPEAK as MACS2_BROAD_NOIGG                  } from "../../modules/nf-core/macs2/callpeak/main"
+include { BEDTOOLS_INTERSECT as SEACR_BEDTOOLS_INTERSECT          } from "../../modules/nf-core/bedtools/intersect/main"
+include { BEDTOOLS_INTERSECT as NARROW_BEDTOOLS_INTERSECT   } from "../../modules/nf-core/bedtools/intersect/main"
+include { BEDTOOLS_INTERSECT as BROAD_BEDTOOLS_INTERSECT    } from "../../modules/nf-core/bedtools/intersect/main"
+include { FILTER_PEAKS as NARROW_FILTER                                        } from "../../modules/local2/filter_peaks"
+include { FILTER_PEAKS as BROAD_FILTER                                        } from "../../modules/local2/filter_peaks"
 
 
 workflow CALL_PEAKS_PROCESS_CONTROLS {
@@ -88,14 +88,14 @@ workflow CALL_PEAKS_PROCESS_CONTROLS {
         /*
         * CHANNEL: mix igg and noigg SEACR peaks for cases with control
         */
-        SEACR_PEAKS_BEDTOOLS_INTERSECT(
+        SEACR_BEDTOOLS_INTERSECT(
             ch_seacr_peaks_igg
             .join ( ch_seacr_peaks_noigg.ifEmpty([[:],[]]) )
             .map { it -> [it[0], it[1], it[2]]},
             [[:],[]]
         )
-        ch_seacr_peaks_filtered = SEACR_PEAKS_BEDTOOLS_INTERSECT.out.intersect
-        ch_versions = ch_versions.mix(SEACR_PEAKS_BEDTOOLS_INTERSECT.out.versions)
+        ch_seacr_peaks_filtered = SEACR_BEDTOOLS_INTERSECT.out.intersect
+        ch_versions = ch_versions.mix(SEACR_BEDTOOLS_INTERSECT.out.versions)
         // EXAMPLE CHANNEL STRUCT: [[META], BED]
         //SEACR_PEAKS_BEDTOOLS_INTERSECT.out.intersect | view
 
@@ -139,23 +139,23 @@ workflow CALL_PEAKS_PROCESS_CONTROLS {
     //ch_bam_target_fctrl | view
     // EXAMPLE CHANNEL STRUCT: [[META], BAM, FAKE_CTRL]
 
-    MACS2_CALLPEAK_NOIGG_NARROW (
+    MACS2_NARROW_NOIGG (
         ch_bam_target_fctrl,
         params.macs_gsize
     )
-    ch_macs2_peaks_noigg_narrow = MACS2_CALLPEAK_NOIGG_NARROW.out.peak
-    //ch_peaks_summits_noigg_narrow     = MACS2_CALLPEAK_NOIGG_NARROW.out.bed
-    ch_versions = ch_versions.mix(MACS2_CALLPEAK_NOIGG_NARROW.out.versions)
+    ch_macs2_peaks_noigg_narrow = MACS2_NARROW_NOIGG.out.peak
+    //ch_peaks_summits_noigg_narrow     = MACS2_NARROW_NOIGG.out.bed
+    ch_versions = ch_versions.mix(MACS2_NARROW_NOIGG.out.versions)
 
-    MACS2_CALLPEAK_NOIGG_BROAD (
+    MACS2_BROAD_NOIGG (
         ch_bam_target_fctrl,
         params.macs_gsize
     )
     // MACS2_CALLPEAK_NOIGG.out.peak | view
     // EXAMPLE CHANNEL STRUCT: [[META], BED]
-    ch_macs2_peaks_noigg_broad = MACS2_CALLPEAK_NOIGG_BROAD.out.peak
-    //ch_peaks_summits_noigg_broad     = MACS2_CALLPEAK_NOIGG_BROAD.out.bed
-    ch_versions = ch_versions.mix(MACS2_CALLPEAK_NOIGG_NARROW.out.versions)
+    ch_macs2_peaks_noigg_broad = MACS2_BROAD_NOIGG.out.peak
+    //ch_peaks_summits_noigg_broad     = MACS2_BROAD_NOIGG.out.bed
+    ch_versions = ch_versions.mix(MACS2_BROAD_NOIGG.out.versions)
 
     /*
     * Call MACS2 peaks with igg
@@ -169,21 +169,21 @@ workflow CALL_PEAKS_PROCESS_CONTROLS {
         //ch_bam_paired | view
         // EXAMPLE CHANNEL STRUCT: [[TARGET META], TARGET_BAM, CONTROL_BAM]
 
-        MACS2_CALLPEAK_IGG_NARROW (
+        MACS2_NARROW_IGG (
             ch_bam_paired,
             params.macs_gsize
         )
-        ch_macs2_peaks_igg_narrow       = MACS2_CALLPEAK_IGG_NARROW.out.peak
-        ch_peaks_summits_igg_narrow     = MACS2_CALLPEAK_IGG_NARROW.out.bed
-        ch_versions = ch_versions.mix(MACS2_CALLPEAK_IGG_NARROW.out.versions)
+        ch_macs2_peaks_igg_narrow       = MACS2_NARROW_IGG.out.peak
+        ch_peaks_summits_igg_narrow     = MACS2_NARROW_IGG.out.bed
+        ch_versions = ch_versions.mix(MACS2_NARROW_IGG.out.versions)
 
-        MACS2_CALLPEAK_IGG_BROAD (
+        MACS2_BROAD_IGG (
             ch_bam_paired,
             params.macs_gsize
         )
-        ch_macs2_peaks_igg_broad       = MACS2_CALLPEAK_IGG_BROAD.out.peak
-        ch_peaks_summits_igg_broad     = MACS2_CALLPEAK_IGG_BROAD.out.bed
-        ch_versions = ch_versions.mix(MACS2_CALLPEAK_IGG_BROAD.out.versions)
+        ch_macs2_peaks_igg_broad       = MACS2_BROAD_IGG.out.peak
+        ch_peaks_summits_igg_broad     = MACS2_BROAD_IGG.out.bed
+        ch_versions = ch_versions.mix(MACS2_BROAD_IGG.out.versions)
 
         // EXAMPLE CHANNEL STRUCT: [[META], BED]
         //MACS2_CALLPEAK_IGG.out.peak | view
@@ -191,42 +191,42 @@ workflow CALL_PEAKS_PROCESS_CONTROLS {
         /*
         * CHANNEL: pair igg and noigg MACS2 narrow peaks when available
         */
-        MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT(
+        NARROW_BEDTOOLS_INTERSECT(
             ch_macs2_peaks_igg_narrow
             .join ( ch_macs2_peaks_noigg_narrow.ifEmpty([[:],[]]) )
             .map { row -> [row[0], row[1], row[2]] },
             [[:],[]]
         )
-        ch_macs2_peaks_narrow_filtered =  MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.intersect
-        ch_versions = ch_versions.mix(MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.versions)
+        ch_macs2_peaks_narrow_filtered =  NARROW_BEDTOOLS_INTERSECT.out.intersect
+        ch_versions = ch_versions.mix(NARROW_BEDTOOLS_INTERSECT.out.versions)
         // EXAMPLE CHANNEL STRUCT: [[META], BED]
         //MACS2_PEAKS_NARROW_BEDTOOLS_INTERSECT.out.intersect | view
 
-        MACS2_PEAKS_NARROW_FILTER(
+        NARROW_FILTER(
             ch_macs2_peaks_narrow_filtered.ifEmpty([[:],[]])
         )
-        ch_macs2_peaks_narrow_filtered =  MACS2_PEAKS_NARROW_FILTER.out.file
-        ch_versions = ch_versions.mix(MACS2_PEAKS_NARROW_FILTER.out.versions)
+        ch_macs2_peaks_narrow_filtered =  NARROW_FILTER.out.file
+        ch_versions = ch_versions.mix(NARROW_FILTER.out.versions)
 
         /*
         * CHANNEL: pair igg and noigg MACS2 broad peaks
         */
-        MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT(
+        BROAD_BEDTOOLS_INTERSECT(
             ch_macs2_peaks_noigg_broad.ifEmpty([[:],[]])
             .join ( ch_macs2_peaks_igg_broad )
             .map {row -> [row[0], row[1], row[2]]},
             [[:],[]]
         )
-        ch_macs2_peaks_broad_filtered =  MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.intersect
-        ch_versions = ch_versions.mix(MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.versions)
+        ch_macs2_peaks_broad_filtered =  BROAD_BEDTOOLS_INTERSECT.out.intersect
+        ch_versions = ch_versions.mix(BROAD_BEDTOOLS_INTERSECT.out.versions)
         // EXAMPLE CHANNEL STRUCT: [[META], BED]
         //MACS2_PEAKS_BROAD_BEDTOOLS_INTERSECT.out.intersect | view
 
-        MACS2_PEAKS_BROAD_FILTER(
+        BROAD_FILTER(
             ch_macs2_peaks_broad_filtered.ifEmpty([[:],[]])
         )
-        ch_macs2_peaks_broad_filtered =  MACS2_PEAKS_BROAD_FILTER.out.file
-        ch_versions = ch_versions.mix(MACS2_PEAKS_BROAD_FILTER.out.versions)
+        ch_macs2_peaks_broad_filtered =  BROAD_FILTER.out.file
+        ch_versions = ch_versions.mix(BROAD_FILTER.out.versions)
 
     }
 

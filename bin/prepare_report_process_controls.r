@@ -154,13 +154,7 @@ if (dir.exists('replicated_peaks')){
   if (length(rep.metrics) > 0){
     k <- file.size(rep.metrics) > 0
     if (sum(k) > 0){
-      dat$nreps <- bind_rows(lapply(rep.metrics[k], read.csv)) %>% 
-        left_join(
-          dat$npeaks %>% 
-            dplyr::select(file, sample_group, target, sample_replicate) %>% 
-            unique.data.frame(),
-          by = 'file'
-        )
+      dat$nreps <- bind_rows(lapply(rep.metrics[k], read.csv))
     }
   }
 }

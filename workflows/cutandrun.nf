@@ -671,14 +671,14 @@ workflow CUTANDRUN {
     * QC peaks for process controls
     */
     if (params.run_local_peak_qc && params.workflow == "process_controls"){
-        ch_hiconf_peaks = params.hiconf_peaks ? Channel.fromPath("${params.hiconf_peaks}", type: "dir", checkIfExists: true) : Channel.empty()
+        ch_ref_peaks = params.ref_peaks ? Channel.fromPath("${params.ref_peaks}", type: "dir", checkIfExists: true) : Channel.empty()
         QC_PROCESS_CONTROLS(
             samplesheet,
             params.genome,
             ch_samtools_bam,
             ch_peaks_all,
             ch_peaks_final,
-            ch_hiconf_peaks.ifEmpty([])
+            ch_ref_peaks.ifEmpty([])
         )
 
     }

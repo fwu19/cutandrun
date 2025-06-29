@@ -67,7 +67,11 @@ add_metadata <- function(ss, meta_csv){
 
 add_metadata_process_controls <- function(ss){
     ss$flowcell <- basename(gsub('.Unaligned.*', '', ss$fastq_1))
-    ss$sample_group <- ifelse(as.integer(gsub('_.*', '', ss$flowcell)) > 211110, 'PE50', 'PE25')
+    ss$sample_group <- case_when(
+        as.integer(gsub('_.*', '', ss$flowcell)) < 211201 ~ 'PE25',
+        as.integer(gsub('_.*', '', ss$flowcell)) < 240201 ~ 'PE50_digitonin',
+        TRUE ~ 'PE50_triton'
+        )
     ss$sample_label <- gsub('^PC_|K562_','',basename(ss$id))
     ss$target <- case_when(
         grepl('H3K27|H3K23|K27', ss$id, ignore.case = T) ~ 'H3K27me3',
