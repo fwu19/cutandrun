@@ -776,7 +776,7 @@ workflow CUTANDRUN {
             */
 
             GENERATE_REPORT_COMB_IGG(
-                samplesheet,
+                samplesheet_combine_igg,
                 QC_READS.out.read_metrics.ifEmpty([]),
                 QC_READS.out.frag_lens.collect{it[1]}.ifEmpty([]),
                 QC_PEAKS_COMB_IGG.out.orig_csv.collect{it[1]}.ifEmpty([]),

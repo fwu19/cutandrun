@@ -1,15 +1,14 @@
 
-## Peak calling from individual samples {.tabset .tabset-pills}
+## QC peaks {.tabset .tabset-pills}
+### Each replicate {.tabset .tabset-pills}
 
 **A. Peaks from each sample** - number of peaks called from each library.
 For each peak caller, both target-only peaks and target-against-IgG peaks were called and common peaks (shown as solid dots and referred to as filtered peaks) were retained for further analysis.
 
 **B. Fraction of reads in peak** - fraction of paired-end reads in filtered peaks.
 
-**C-E. Peak width** - peak width distribution of the final set. \
-For clarity, x-axis of each plot is up to 75 percentile of the presented data. 
-Vertical bars indicate the median of violin plots.\
-
+**C. Peak width** - peak width distribution of the filtered set.
+The upper bound of x-axis was limited to the maximum 3rd quantile of datasets.
 
 $$\\[0.1in]$$
 
@@ -37,7 +36,7 @@ if (length(intersect(qc_peak, names(figs))) > 0){
       ))
     
     cat("\n\n")
-    cat("###", tgt, "\n\n")
+    cat("####", tgt, "\n\n")
     print(p2)
     cat("\n\n")
     
@@ -46,7 +45,4 @@ if (length(intersect(qc_peak, names(figs))) > 0){
 
 ```
 
-## {.unnumbered .unlisted}
-
-$$\\[0.5in]$$
 

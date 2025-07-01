@@ -1,8 +1,5 @@
 
-## Replicated and consensus peaks
-
 ### Replicated peaks {.tabset .tabset-pills}
-
 For each group (i.e. replicates from the same sample group and target as listed in section **Sample sheet**), peaks from all replicates are pooled and merged into a set of non-overlapping peaks.\
 If multiple replicates are available, only **replicated peaks** contributed by at least two replicates (or more replicates if a specific cutoff is applied) are kept for further analysis.\
 If only one replicate is available or only one replicate produces peaks, its peaks is used for further analysis unless excluded specifically otherwise.\
@@ -76,12 +73,9 @@ if ('nreps' %in% names(dat)){
 }
 ```
 
-### {.unnumbered .unlisted}
 
-$$\\[0.2in]$$
 
-### Consensus peaks by target {.tabset .tabset-pills}
-
+### Consensus peaks {.tabset .tabset-pills}
 For each target, **group peaks** from all sample groups, e.g. cell line, conditions, are pooled, and overlapping peaks are merged into a set of **consensus peaks**.\
 
 $$\\[0.1in]$$
@@ -178,12 +172,7 @@ if ('seacr2macs' %in% names(figs)){
 ```
 
 
-
-
-
-
-## {.unnumbered .unlisted}
+##  {.unlisted .unnumbered}
 
 $$\\[0.5in]$$
-
 
