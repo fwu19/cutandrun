@@ -532,7 +532,8 @@ workflow CUTANDRUN {
             ch_bedgraph_markdup,
             ch_bedgraph_dedup,
             params.run_combine_igg,
-            meta_combine_igg
+            meta_combine_igg,
+            params.skip_individual_igg
         )
 
         ch_software_versions = ch_software_versions.mix(CALL_SEACR_PEAKS.out.versions)
@@ -540,7 +541,8 @@ workflow CUTANDRUN {
         CALL_MACS2_PEAKS (
             ch_samtools_bam_markdup,
             params.run_combine_igg,
-            meta_combine_igg
+            meta_combine_igg,
+            params.skip_individual_igg
         )
         ch_software_versions = ch_software_versions.mix(CALL_MACS2_PEAKS.out.versions)
 
@@ -574,7 +576,7 @@ workflow CUTANDRUN {
     /*
     * QC peaks
     */
-    if (params.run_local_peak_qc && params.workflow == "cutandrun"){
+    if (params.run_local_peak_qc && params.workflow == "cutandrun" && !params.skip_individual_igg){
         CALL_MACS2_PEAKS.out.narrow_filtered
             .concat(
                 CALL_MACS2_PEAKS.out.narrow_igg,
@@ -686,7 +688,7 @@ workflow CUTANDRUN {
     /*
     * Call differential peaks
     */
-    if (params.run_local_dp){
+    if (params.run_local_dp & !params.skip_individual_igg){
         // Count reads in consensus peaks
         READS_IN_CONSENSUS_PEAKS(
             QC_PEAKS.out.con_bed
@@ -744,7 +746,7 @@ workflow CUTANDRUN {
     /*
     * Generate report for experimental data
     */
-    if (params.run_local_report & params.workflow == "cutandrun"){
+    if (params.run_local_report & params.workflow == "cutandrun" & !params.skip_individual_igg){
             /*
             * Make plots for report
             */

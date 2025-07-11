@@ -34,7 +34,11 @@ workflow QC_PEAKS {
         * Compute reads in peak
         */
         ch_peaks_final
-            .join(ch_samtools_bam)
+            .map { it -> [ it[0].id, it[0], it[1] ]}
+            .join(
+                ch_samtools_bam.map{ it -> [ it[0].id, it[1] ]}
+            )
+            .map { it -> [ it[1], it[2], it[3] ]}
             .set{ch_peak_bam}
 
         READS_IN_PEAK(

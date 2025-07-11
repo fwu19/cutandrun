@@ -16,6 +16,7 @@ workflow CALL_SEACR_PEAKS {
     bedgraph_dedup
     combine_igg
     meta_combine_igg
+    skip_individual_igg
 
     main:
 
@@ -49,21 +50,7 @@ workflow CALL_SEACR_PEAKS {
         // EXAMPLE CHANNEL STRUCT: [[TARGET META], TARGET_BEDGRAPH, CONTROL_BEDGRAPH]
 
     /*
-    * with IgG control
-    */
-
-    SEACR_CALLPEAK_IGG (
-        ch_bedgraph_paired,
-        params.seacr_peak_threshold
-    )
-    ch_seacr_igg    = SEACR_CALLPEAK_IGG.out.bed
-    ch_versions = SEACR_CALLPEAK_IGG.out.versions
-    // EXAMPLE CHANNEL STRUCT: [[META], BED]
-    //SEACR_CALLPEAK_IGG.out.bed | view
-
-
-    /*
-    * with no IgG control
+    * without IgG control
     */
     ch_bedgraph_target
         .map{ it -> [ it[1][0], it[1][1], [] ] }
@@ -81,25 +68,39 @@ workflow CALL_SEACR_PEAKS {
             no_control: it[0].control_group == ""
         }
         .set { ch_seacr_noigg}
-    ch_versions = ch_versions.mix(SEACR_CALLPEAK_NOIGG.out.versions)
+    ch_versions = SEACR_CALLPEAK_NOIGG.out.versions
     // EXAMPLE CHANNEL STRUCT: [[META], BED]
     //SEACR_NO_IGG.out.bed | view
 
 
     /*
-    * pair igg and noigg SEACR peaks for cases with control
+    * with IgG control
     */
-    SEACR_BEDTOOLS_INTERSECT(
+
+    if (!skip_individual_igg){
+        SEACR_CALLPEAK_IGG (
+            ch_bedgraph_paired,
+            params.seacr_peak_threshold
+        )
+        ch_seacr_igg    = SEACR_CALLPEAK_IGG.out.bed
+        ch_versions = ch_versions.mix(SEACR_CALLPEAK_IGG.out.versions)
+        // EXAMPLE CHANNEL STRUCT: [[META], BED]
+        //SEACR_CALLPEAK_IGG.out.bed | view
+
+
+        // intersect igg and no-igg peaks
+        SEACR_BEDTOOLS_INTERSECT(
             ch_seacr_igg
             .join ( ch_seacr_noigg.with_control.ifEmpty([[:],[]]) )
             .map { it -> [it[0], it[1], it[2]]},
             [[:],[]]
-    )
-    ch_seacr_filtered = SEACR_BEDTOOLS_INTERSECT.out.intersect
-    ch_versions = ch_versions.mix(SEACR_BEDTOOLS_INTERSECT.out.versions)
-    // EXAMPLE CHANNEL STRUCT: [[META], BED]
-    //BEDTOOLS_INTERSECT.out.intersect | view
+        )
+        ch_seacr_filtered = SEACR_BEDTOOLS_INTERSECT.out.intersect
+        ch_versions = ch_versions.mix(SEACR_BEDTOOLS_INTERSECT.out.versions)
+        // EXAMPLE CHANNEL STRUCT: [[META], BED]
+        //BEDTOOLS_INTERSECT.out.intersect | view
 
+    }
 
     /*
     * Call peaks against combined IgG

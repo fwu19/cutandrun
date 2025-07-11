@@ -20,9 +20,9 @@ $$\\[0.1in]$$
 
 #### 03_genome_coverage/
 
-*unnormalized_bedgraph* -- unnormalized genome coverage of all mapped reads. Also input for SEACR peak calling.
+*unnormalized_bedgraph/* -- unnormalized genome coverage of all mapped reads. Also input for SEACR peak calling.
 
-*normalized_bigwig* -- normalized genome coverage (CPM, count per million) of all mapped reads. Recommended input for IGV.
+*normalized_bigwig/* -- normalized genome coverage (CPM, count per million) of all mapped reads. Recommended input for IGV.
 
 $$\\[0.1in]$$
 
