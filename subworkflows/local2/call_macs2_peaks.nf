@@ -11,13 +11,15 @@ include { BEDTOOLS_INTERSECT as BROAD_BEDTOOLS_INTERSECT    } from "../../module
 include { FILTER_PEAKS as NARROW_FILTER                     } from "../../modules/local2/filter_peaks"
 include { FILTER_PEAKS as BROAD_FILTER                      } from "../../modules/local2/filter_peaks"
 
-include { MERGE_BAM as MERGE_BAM_TARGET_MARKDUP                      } from "../../modules/local2/merge_bam"
+include { MERGE_BAM                                                  } from "../../modules/local2/merge_bam"
 include { MACS2_CALLPEAK as MACS2_NARROW_COMB_IGG                    } from "../../modules/nf-core/macs2/callpeak/main"
 include { MACS2_CALLPEAK as MACS2_BROAD_COMB_IGG                     } from "../../modules/nf-core/macs2/callpeak/main"
 include { BEDTOOLS_INTERSECT as NARROW_COMB_IGG_BEDTOOLS_INTERSECT   } from "../../modules/nf-core/bedtools/intersect/main"
 include { BEDTOOLS_INTERSECT as BROAD_COMB_IGG_BEDTOOLS_INTERSECT    } from "../../modules/nf-core/bedtools/intersect/main"
 include { FILTER_PEAKS as NARROW_COMB_IGG_FILTER                     } from "../../modules/local2/filter_peaks"
 include { FILTER_PEAKS as BROAD_COMB_IGG_FILTER                      } from "../../modules/local2/filter_peaks"
+
+include { BAM_COVERAGE                                               } from "../../modules/local2/bam_coverage"
 
 
 workflow CALL_MACS2_PEAKS {
@@ -179,7 +181,8 @@ workflow CALL_MACS2_PEAKS {
             .map { it -> [ it.id, it ]}
             .set { ch_meta_comb_igg }
 
-        MERGE_BAM_TARGET_MARKDUP (
+        // merge IgG bam files
+        MERGE_BAM (
             ch_meta_comb_igg
             .join(
                 bam_markdup
@@ -190,7 +193,16 @@ workflow CALL_MACS2_PEAKS {
             .groupTuple()
         )
 
-        MERGE_BAM_TARGET_MARKDUP.out.bam // [ val(control_group), path(control_bam) ]
+        // generate bigwig for combined IgG
+        BAM_COVERAGE (
+            MERGE_BAM.out.bam
+                .join ( MERGE_BAM.out.bai)
+        )
+        ch_versions = ch_versions.mix(BAM_COVERAGE.out.versions)
+
+
+        // pair combined igg and target
+        MERGE_BAM.out.bam // [ val(control_group), path(control_bam) ]
             .cross(
                 bam_markdup
                 .filter { it -> it[0].is_control == false }
@@ -201,8 +213,7 @@ workflow CALL_MACS2_PEAKS {
             .map { it -> [ it[1][1], it[1][2], it[0][1] ] } // EXAMPLE CHANNEL STRUCT: [[TARGET META], TARGET_BAM, CONTROL_BAM]
             .set { ch_bam_paired_comb_igg }
 
-
-
+        // call peaks with combined igg
         MACS2_NARROW_COMB_IGG (
             ch_bam_paired_comb_igg,
             params.macs_gsize

@@ -161,6 +161,8 @@ include { QC_READS                                                           } f
 include { QC_PEAKS                                                           } from '../subworkflows/local2/qc_peaks'
 include { QC_PEAKS as QC_PEAKS_COMB_IGG                                      } from '../subworkflows/local2/qc_peaks'
 include { QC_PROCESS_CONTROLS                                                } from '../subworkflows/local2/qc_process_controls'
+include { SUMMARY_PLOTS                                                      } from '../subworkflows/local2/summary_plots'
+include { SUMMARY_PLOTS as SUMMARY_PLOTS_COMB_IGG                            } from '../subworkflows/local2/summary_plots'
 
 include { GET_FASTQ_PATHS                                                    } from '../modules/local2/get_fastq_paths'
 include { MULTIQC                                                            } from '../modules/local2/multiqc'
@@ -380,18 +382,6 @@ workflow CUTANDRUN {
     //ch_samtools_bam | view
 
     /*
-     * MODULE: Run preseq on BAM files before de-duplication
-    */
-    ch_preseq_output = Channel.empty()
-    if (params.run_preseq) {
-        PRESEQ_LCEXTRAP (
-            ch_samtools_bam
-        )
-        ch_preseq_output = PRESEQ_LCEXTRAP.out.lc_extrap
-        ch_software_versions = ch_software_versions.mix(PRESEQ_LCEXTRAP.out.versions)
-    }
-
-    /*
      * SUBWORKFLOW: Mark duplicates on all samples
      */
     ch_samtools_bam_markdup = Channel.empty()
@@ -457,35 +447,13 @@ workflow CUTANDRUN {
 
 
     /*
-     * SUBWORKFLOW: Remove linear amplification duplicates - default is false
-     */
-    ch_linear_metrics         = Channel.empty()
-    ch_linear_duplication_mqc = Channel.empty()
-    if (params.run_remove_linear_dups) {
-        DEDUPLICATE_LINEAR (
-            ch_samtools_bam,
-            ch_samtools_bai,
-            PREPARE_GENOME.out.fasta.collect(),
-            PREPARE_GENOME.out.fasta_index.collect(),
-            params.dedup_target_reads,
-            ch_linear_duplication_header_multiqc
-        )
-        ch_samtools_bam           = DEDUPLICATE_LINEAR.out.bam
-        ch_samtools_bai           = DEDUPLICATE_LINEAR.out.bai
-        ch_samtools_stats         = DEDUPLICATE_LINEAR.out.stats
-        ch_samtools_flagstat      = DEDUPLICATE_LINEAR.out.flagstat
-        ch_samtools_idxstats      = DEDUPLICATE_LINEAR.out.idxstats
-        ch_linear_metrics         = DEDUPLICATE_LINEAR.out.metrics
-        ch_linear_duplication_mqc = DEDUPLICATE_LINEAR.out.linear_metrics_mqc
-        ch_software_versions      = ch_software_versions.mix(DEDUPLICATE_LINEAR.out.versions)
-    }
-
-
-    /*
     * SUBWORKFLOW: Convert BAM files to bedgraph/bigwig and apply spikein normalisation if required
     */
     ch_bedgraph_markdup     = Channel.empty()
     ch_bedgraph_dedup       = Channel.empty()
+    ch_bigwig_markdup       = Channel.empty()
+    ch_bigwig_dedup         = Channel.empty()
+
     if(params.run_alignment && params.run_read_filter) {
         COMPUTE_GENOMECOVERAGE(
             ch_samtools_bam_markdup,
@@ -499,7 +467,8 @@ workflow CUTANDRUN {
         )
         ch_bedgraph_markdup          = COMPUTE_GENOMECOVERAGE.out.bedgraph_markdup_unnorm
         ch_bedgraph_dedup          = COMPUTE_GENOMECOVERAGE.out.bedgraph_dedup_unnorm
-        //ch_bigwig_markdup            = COMPUTE_GENOMECOVERAGE_MARKDUP.out.bigwig_cpm
+        ch_bigwig_markdup            = COMPUTE_GENOMECOVERAGE.out.bigwig_markdup
+        ch_bigwig_dedup            = COMPUTE_GENOMECOVERAGE.out.bigwig_dedup
         ch_software_versions = ch_software_versions.mix(COMPUTE_GENOMECOVERAGE.out.versions)
 
     }
@@ -688,10 +657,11 @@ workflow CUTANDRUN {
     /*
     * Call differential peaks
     */
+    ch_dp = Channel.empty()
     if (params.run_local_dp & !params.skip_individual_igg){
         // Count reads in consensus peaks
         READS_IN_CONSENSUS_PEAKS(
-            QC_PEAKS.out.con_bed
+            QC_PEAKS.out.conp_bed
                 .cross (
                         ch_samtools_bam
                             .filter { it[0].target != "IgG" }
@@ -706,21 +676,22 @@ workflow CUTANDRUN {
             READS_IN_CONSENSUS_PEAKS.out.count
                 .groupTuple( by: 0 )
                 .map { it -> [ it[0], it[1].flatten().collect() ]}
-                .cross ( QC_PEAKS.out.con_bed )
+                .cross ( QC_PEAKS.out.conp_bed )
                 .map { it -> [ it[0][0], it[0][1], it[1][1] ]}
                 .combine(samplesheet)
                 .combine(params.comparison ? Channel.fromPath( params.comparison, checkIfExists: true ) : ch_dummy_csv)
         )
-
+        ch_dp = DIFFERENTIAL_PEAKS.out.data
     }
 
     /*
     * Call differential peaks with combined IgG
     */
+    ch_dp_comb_igg = Channel.empty()
     if (params.run_local_dp & params.run_combine_igg){
         // Count reads in consensus peaks
         READS_IN_CONSENSUS_PEAKS_COMB_IGG(
-            QC_PEAKS_COMB_IGG.out.con_bed
+            QC_PEAKS_COMB_IGG.out.conp_bed
                 .cross (
                         ch_samtools_bam
                             .filter { it[0].target != "IgG" }
@@ -735,12 +706,12 @@ workflow CUTANDRUN {
             READS_IN_CONSENSUS_PEAKS_COMB_IGG.out.count
                 .groupTuple( by: 0 )
                 .map { it -> [ it[0], it[1].flatten().collect() ]}
-                .cross ( QC_PEAKS_COMB_IGG.out.con_bed )
+                .cross ( QC_PEAKS_COMB_IGG.out.conp_bed )
                 .map { it -> [ it[0][0], it[0][1], it[1][1] ]}
                 .combine(samplesheet)
                 .combine(params.comparison ? Channel.fromPath( params.comparison, checkIfExists: true ) : ch_dummy_file)
         )
-
+        ch_dp_comb_igg = DIFFERENTIAL_PEAKS_COMB_IGG.out.data
     }
 
     /*
@@ -759,8 +730,8 @@ workflow CUTANDRUN {
                 QC_PEAKS.out.orig_widths.collect{it[1]}.ifEmpty([]),
                 QC_PEAKS.out.rip.collect{it[1]}.ifEmpty([]),
                 QC_PEAKS.out.rep_csv.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS.out.con_csv.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS.out.con_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
+                QC_PEAKS.out.conp_csv.collect{it[1]}.ifEmpty([]),
+                QC_PEAKS.out.conp_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
                 QC_PEAKS.out.conp_ann.collect{it[1]}.ifEmpty([]),
                 DIFFERENTIAL_PEAKS.out.data.flatten().collect().ifEmpty([]),
                 params.local_assets ? Channel.fromPath("${params.local_assets}/report/", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
@@ -785,8 +756,8 @@ workflow CUTANDRUN {
                 QC_PEAKS_COMB_IGG.out.orig_widths.collect{it[1]}.ifEmpty([]),
                 QC_PEAKS_COMB_IGG.out.rip.collect{it[1]}.ifEmpty([]),
                 QC_PEAKS_COMB_IGG.out.rep_csv.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.con_csv.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.con_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.conp_csv.collect{it[1]}.ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.conp_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
                 QC_PEAKS_COMB_IGG.out.conp_ann.collect{it[1]}.ifEmpty([]),
                 DIFFERENTIAL_PEAKS_COMB_IGG.out.data.flatten().collect().ifEmpty([]),
                 params.local_assets ? Channel.fromPath("${params.local_assets}/report/", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
@@ -815,7 +786,30 @@ workflow CUTANDRUN {
 
     }
 
+    /*
+    * make plots, e.g. heatmaps
+    */
+    if (params.run_local_peak_qc && params.run_summary_plots & !params.skip_individual_igg){
+        SUMMARY_PLOTS(
+            ch_bigwig_markdup,
+            QC_PEAKS.out.conp_bed.ifEmpty([]),
+            QC_PEAKS.out.conp_ann.collect{it[1]}.ifEmpty([]),
+            ch_dp.collect().ifEmpty([]),
+            params.local_assets ? file("${params.local_assets}/${params.genome_ann}/genes.proteinCoding_lncRNA.genes.bed") : "$projectDir/assets/dummy_file.txt",
+            true
+        )
+    }
 
+    if (params.run_local_peak_qc && params.run_summary_plots & params.run_combine_igg){
+        SUMMARY_PLOTS_COMB_IGG(
+            ch_bigwig_markdup,
+            QC_PEAKS_COMB_IGG.out.conp_bed.ifEmpty([]),
+            QC_PEAKS_COMB_IGG.out.conp_ann.collect{it[1]}.ifEmpty([]),
+            ch_dp_comb_igg.collect().ifEmpty([]),
+            params.local_assets ? file("${params.local_assets}/${params.genome_ann}/genes.proteinCoding_lncRNA.genes.bed") : "$projectDir/assets/dummy_file.txt",
+            false
+        )
+    }
 }
 
 ////////////////////////////////////////////////////

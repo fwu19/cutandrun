@@ -26,8 +26,8 @@ workflow QC_PEAKS {
         ch_rip = Channel.empty()
         ch_rep_bed = Channel.empty()
         ch_rep_csv = Channel.empty()
-        ch_con_bed = Channel.empty()
-        ch_con_csv = Channel.empty()
+        ch_conp_bed = Channel.empty()
+        ch_conp_csv = Channel.empty()
         ch_conp_ann = Channel.empty()
 
         /*
@@ -94,8 +94,8 @@ workflow QC_PEAKS {
                 .map { it -> [ it[0], it[1].flatten().collect() ] }
                 .combine ( samplesheet )
         )
-        ch_con_bed = CONSENSUS_PEAKS.out.bed
-        ch_con_csv = CONSENSUS_PEAKS.out.csv
+        ch_conp_bed = CONSENSUS_PEAKS.out.bed
+        ch_conp_csv = CONSENSUS_PEAKS.out.csv
         // ch_conp_bed.view()
         // [ target, path(conp) ]
 
@@ -105,7 +105,7 @@ workflow QC_PEAKS {
         ANNOTATE_CONSENSUS_PEAKS(
                 genome,
                 gtf_ann,
-                ch_con_bed.collect{it[1]}.flatten()
+                ch_conp_bed.collect{it[1]}.flatten()
         )
         ch_conp_ann = ANNOTATE_CONSENSUS_PEAKS.out.txt
         // ch_conp_ann.view()
@@ -118,7 +118,7 @@ workflow QC_PEAKS {
     orig_widths = ch_orig_widths
     rep_bed = ch_rep_bed
     rep_csv = ch_rep_csv
-    con_bed = ch_con_bed
-    con_csv = ch_con_csv
+    conp_bed = ch_conp_bed
+    conp_csv = ch_conp_csv
     conp_ann = ch_conp_ann
 }

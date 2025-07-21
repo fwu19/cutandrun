@@ -70,68 +70,6 @@ workflow COMPUTE_GENOMECOVERAGE {
     //EXAMPLE CHANNEL STRUCT: [META], BEDGRAPH]
     //BEDTOOLS_GENOMECOV_DEDUP_UNNORM.out.genomecov | view
 
-
-    /*
-    * Convert markdup.bam files to spike-in normalized bedgraph if required
-    */
-
-    if (norm_mode == "Spikein") {
-        /*
-        * CHANNEL: Load up alignment metadata into channel
-        */
-        metadata.splitCsv ( header:true, sep:"," )
-            .map { row -> [ row[0].id, row[1] ]}
-            .set { ch_metadata }
-        //ch_metadata | view
-
-        /*
-        * CHANNEL: Calculate scale factor for each sample based on a constant devided by the number
-        *          of reads aligned to the spike-in genome.
-        */
-        ch_bam_markdup.map { row -> [ row[0].id, row[0], row[1] ]}
-            .join ( ch_metadata )
-            .map { row ->
-                def denominator = row[3].find{ it.key == "bt2_total_aligned" }?.value.toInteger()
-                [ row[1], row[2], params.normalisation_c / (denominator != 0 ? denominator : params.normalisation_c) ]
-            }
-            .set { ch_bam_markdup_scale_factor_spikein }
-        // EXAMPLE CHANNEL STRUCT: [id, scale_factor]
-        //ch_bam_markdup_scale_factor | view
-
-
-        /*
-        * MODULE: Convert bam files to bedgraph
-        */
-        BEDTOOLS_GENOMECOV_MARKDUP_SPIKEIN (
-            ch_bam_markdup_scale_factor_spikein,
-            ch_dummy_file,
-            "markdup.spikein_norm.bedGraph"
-        )
-        ch_versions = ch_versions.mix(BEDTOOLS_GENOMECOV_MARKDUP_SPIKEIN.out.versions)
-        ch_bedgraph_spikein = BEDTOOLS_GENOMECOV_MARKDUP_SPIKEIN.out.genomecov
-        //EXAMPLE CHANNEL STRUCT: [META], BEDGRAPH]
-        //BEDTOOLS_GENOMECOV_MARKDUP_SPIKEIN.out.genomecov | view
-
-        /*
-        * CHANNEL: Dump scale factor values
-        */
-        if(params.dump_scale_factors) {
-            ch_scale_factor = ch_bam_markdup_scale_factor_spikein
-            .map { [it[0].id, it[0].group, it[2]] }
-            .toSortedList( { a, b -> a[0] <=> b[0] } )
-            .map { list ->
-                new File('scale-factors.markdup.by-spikein.csv').withWriter('UTF-8') { writer ->
-                    list.each { item ->
-                        str = item[0] + "," + item[1] + "," + item[2]
-                        writer.write(str + "\n")
-                    }
-                }
-            }
-        }
-
-    }
-
-
     /*
     * Convert markdup.bam files to markdup.CPM.bigwig for genome browser
     */
@@ -190,6 +128,5 @@ workflow COMPUTE_GENOMECOVERAGE {
     bedgraph_dedup_unnorm = ch_bedgraph_dedup_unnorm        // channel: [ val(meta), [ bedgraph ] ]
     bigwig_markdup = ch_bigwig_markdup // channel: [val(meta), bigwig]
     bigwig_dedup = ch_bigwig_dedup // channel: [val(meta), bigwig]
-    bedgraph_spikein   = ch_bedgraph_spikein // channel: [ val(meta), [ bedgraph ] ]
     versions = ch_versions                      // channel: [ versions.yml ]
 }
