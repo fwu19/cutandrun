@@ -1,0 +1,470 @@
+---
+title: "Cut&Run and Cut&Tag analysis workflow"
+author: ""
+date: "`r format(Sys.time(), '%B %d , %Y')`"
+output: 
+    html_document:
+        theme: readable
+        toc: FALSE
+        toc_float: FALSE
+        toc_depth: 2
+        toc_collapsed: FALSE
+        number_sections: FALSE
+        coding_folding: hide
+        code_download: FALSE
+editor_options: 
+  chunk_output_type: console
+  markdown: 
+    wrap: sentence
+params:
+  dat.dir: "./"
+---
+
+$$\\[0.2in]$$
+
+```{r setup, include=FALSE, dev='CairoPNG'}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning=FALSE, dev="CairoPNG")
+knitr::opts_knit$set(root.dir = params$dat.dir)
+
+library(dplyr)
+```
+
+# {.unnumbered .unlisted .tabset .tabset-pills}
+
+## Introduction
+
+[This pipeline](https://github.com/fwu19/cutandrun) is to analyze sequence data from Cut and Run experiments, Cut and Tag experiments or CUTAC experiments. It was originally forked from [nf-core Cut & Run pipeline](https://nf-co.re/cutandrun/3.2.2/) and has been extensively modified in order to support the analysis of a large number of samples derived from multiple conditions and/or multiple antibodies. \
+
+**The current version is v0.4.3.** \
+
+
+$$\\[0.05in]$$
+
+### Pipeline summary
+
+The current pipeline supports the analysis of experimental samples and the analysis of process controls in each auto-Cut & Run (CnR) or auto-Cut & Tag (CnT) experiment by running the following steps:
+
+- Adapter trimming. \
+
+- Bowtie2 alignment to the target genome and the spike-in genome. \
+
+- Mark duplicated reads and remove duplicate reads. \
+
+- Compute genome coverage of aligned reads to the target genome and report unnormalized bedgraph and count-per-million bigwig. \
+
+- Call peaks using MACS2 with both narrow and broad modes and SEACR with stringent mode. If matching IgG is available, IgG-controlled peaks and target-only peaks will be intersected and common peaks are used for the further analysis. \
+
+For experimental samples only, \
+
+- Generate replicated peaks by group and consensus peaks by target. \
+
+- Call differential peaks between two sample groups. \
+
+- Generate MultiQC report on Trim Galore, Bowtie2, Samtools and GATK results. \
+
+- Generate an analysis report featuring a summary of read metrics, original peaks, replicated peaks, consensus peaks and differential peaks, and description of deliverable and analytical methods. \
+
+For process controls only, \
+
+- Compute precision and recall relative to multiple reference peak sets.
+
+- Generate an updated analysis report by combining with previous data.
+
+
+## Usage {.tabset .tabset-pills}
+
+The workflow can be launched using the script below:
+
+```{bash, eval = F}
+#!/usr/bin/env bash
+module purge all; 
+module load Nextflow/23.04.2; 
+module load Singularity; export PATH=$SINGULARITYROOT/bin/:$PATH; 
+repo="fwu19/cutandrun -r v0.4.3"
+config=path/to/nextflow.config # see examples in "Resources for rhino/gizmo users"
+params=path/to/params.json # see examples in "Resources for rhino/gizmo users"
+
+sh="nextflow run $repo -c $config -with-report $report $@" # $@ for taking command arguments
+sbatch --wrap="$sh"
+
+```
+
+$$\\[0.1in]$$
+
+### Analyze experimental samples.
+
+Example command lines (with the above script saved as `run.sh`)
+
+Either `--input` or `--input_dir` is required. `--metadata` and `--comparision` are optional.
+
+$$\\[0.01in]$$
+
+```{bash, eval = F}
+## take a sample sheet
+bash run.sh \
+  -params-file params.json \
+  --input input.csv \
+  --metadata metadata.csv \
+  --comparison comparisons.csv
+
+## point to a fastq directory
+bash run.sh \
+  -params-file params.json \
+  --input_dir path/to/fastq/dir/  \
+  --metadata metadata.csv \
+  --comparison comparisons.csv
+
+## if fastq files are from multiple locations, save file paths in a text file, one path per line
+bash run.sh \
+  -params-file params.json \
+  --input_dir path/to/input_dirs.txt \
+  --metadata metadata.csv \
+  --comparison comparisons.csv
+
+```
+
+
+### Analyze process controls
+
+For each auto-CnR or auto-CnT experiment, a few process control samples are included for quality control. These control samples can be analyzed using the same workflow but with a different set of parameters. Moreover, when historical data are supplied, this workflow will combine old and new data to generate an updated analysis report.
+
+$$\\[0.01in]$$
+
+#### CnR process controls
+
+```{bash, eval = F}
+## to analyze one single flowcell
+bash run.sh \
+  -params-file params.CnR_PC.json \
+  --input_dir /shared/ngs/illumina/flowcell/ 
+
+## to analyze multiple flow cells together, save path/to/flowcell in a file, one path per line
+bash run.sh \
+  -params-file params.CnR_PC.json \
+  --input_dir path/to/input_dirs.txt 
+
+```
+
+#### {.unnumbered .unlisted}
+
+$$\\[0.01in]$$
+
+#### CnT process controls
+
+```{bash, eval = F}
+## to analyze one single flowcell
+bash run.sh \
+  -params-file params.CnT_PC.json \
+  --input_dir /shared/ngs/illumina/flowcell/ 
+
+## to analyze multiple flow cells together, save path/to/flowcell in a file, one path per line
+bash run.sh \
+  -params-file params.CnT_PC.json \
+  --input_dir path/to/input_dirs.txt 
+
+```
+
+
+## Parameters {.tabset .tabset-pills}
+
+### Input/Output
+
+#### `--input` and `--input_dir` 
+
+Either one is required. 
+
+\
+
+#### `--input_dir path/to/fastq/directory` 
+
+Possible values can be either a path to fastq directory or a text file containing multiple fastq directories (one per line).
+
+Sample IDs and fastq files will be retrieved to create a csv file with columns id, fastq_1, fastq_2 and other relevant columns filled with default values. 
+
+With `--workflow cutandrun`, fastq file names are assumed to follow the pattern `id_S[0-9]+(_L[0-9]+)?_R[12]`. 
+
+With `--workflow process_controls`, fastq file names are assumed to start with the pattern `^PC.` and contain `K562`. 
+
+\
+
+#### `--input path/to/input.csv` 
+
+A comma-delimited file with **.csv** extension . It requires 3 columns: id, fastq_1 and fastq_2. \
+**id** = sample ID \
+**fastq_1** = path/to/read1.fastq.gz \
+**fastq_2** = path/to/read2.fastq.gz. \
+
+Additional columns will either be ignored or taken as metadata if column names are recognized (see `--metadata` below), but will be overwritten if the same column names also exit in `--metadata`. 
+
+An example below: \
+
+```{r echo=FALSE, eval=TRUE}
+tribble(
+  ~id, ~fastq1, ~fastq2,
+  'Ab1_rep1', 'fastq/sample1_R1.fastq.gz', 'fastq/sample1_R2.fastq.gz',
+  'Ab1_rep2', 'fastq/sample2_R1.fastq.gz', 'fastq/sample2_R2.fastq.gz',
+  'IgG', 'fastq/IgG_R1.fastq.gz', 'fastq/IgG_R2.fastq.gz'
+) %>% 
+  DT::datatable(
+  class = 'cell-border stripe', 
+  rownames = F,  
+  editable = F, 
+  extensions = 'Buttons', 
+  options = list(
+    dom = 'Bfrtip',
+    buttons = c('csv')
+  ))
+```
+
+\
+
+#### `--metadata path/to/metadata.csv` 
+
+A comma-delimted file with **.csv** extension . Each row is one sample. It requires a minimum of 1 column: id, and optionally the following columns: sample_group, target, sample_replicate, control, call_peak, call_rep_peak, call_con_peak \
+**sample_group** = condition, cell line, etc. \
+**target** = antibody target, e.g. H3K4me3 \
+**sample_replicate** = 1, 2, etc. \
+**control** = id of matched IgG samples. For an IgG sample, leave this field empty. \
+**igg_group** = define IgG groups. If `--run_combine_igg true`, data from the same group will be combined and used for peak calling instead of individual IgG sample. \
+**call_peak** = whether or not call peaks from this sample. Possible values: [true, false]. \
+**call_rep_peak** = whether or not use this sample for calling replicated peaks. Possible values: [true, false]. \
+**call_con_peak** = whether or not use this sample for calling consensus peaks. Possible values: [true, false]. \
+
+An example below: \
+
+```{r echo=FALSE, eval=TRUE}
+tribble(
+  ~id, ~sample_group, ~target, ~sample_replicate, ~control, ~call_peak, ~call_rep_peak, ~call_con_peak,
+  'group1_Ab1_rep1', 'group1', 'Ab1', 1, 'group1_IgG', 'true', 'true', 'true',
+  'group1_Ab1_rep2', 'group1', 'Ab1', 2, 'group1_IgG', 'true', 'true', 'true',
+  'group1_Ab2_rep1', 'group1', 'Ab2', 1, 'group1_IgG', 'true', 'true', 'true',
+  'group1_Ab2_rep2', 'group1', 'Ab2', 2, 'group1_IgG', 'true', 'true', 'true',
+  'group1_IgG', 'group1', 'IgG', 1, '', 'true', 'true', 'true'
+) %>% 
+  DT::datatable(
+  class = 'cell-border stripe', 
+  rownames = F,  
+  editable = F, 
+  extensions = 'Buttons', 
+  options = list(
+    dom = 'Bfrtip',
+    buttons = c('csv')
+  ))
+```
+
+**Note**: \
+
+- When `--metadata` is supplied, only samples (by column id) in both `--metadata` and `--input`/`--input_dir` will be analyzed. This is useful for analyzing only a subset of samples. 
+
+- If `--input` and `--metadata` are both provided, columns in `--input` will be overwritten if the same columns exist in `--metadata`. Alternatively, if necessary metadata information is included in `--input`, there is no need to provide `--metadata`. 
+
+- If `--metadata` is not supplied and `--input` contains no other metadata information, each sample will be analyzed independently. Individual peak calling will be performed in target-only mode if corresponding IgG is NOT specified in column "control". 
+
+\
+
+#### `--comparison path/to/comparison_table.{csv,txt,tsv,rds}` \
+
+A table listing comparisons of interest. It requires 2 columns: control.group and test.group, Each row corresponds to a comparison. **Values in both columns should be listed under column *sample_group* in metadata table.** The acceptable file formats are comma-delimited (.csv), tab-delimited (.txt, .tsv) or a data.frame in R (.rds).\
+
+An example below: \
+
+```{r echo=FALSE, eval=TRUE}
+tribble(
+  ~test.group, ~control.group,
+  'test1', 'control1',
+  'test2', 'control2'
+) %>% 
+  DT::datatable(
+  class = 'cell-border stripe', 
+  rownames = F,  
+  editable = F, 
+  extensions = 'Buttons', 
+  options = list(
+    dom = 'Bfrtip',
+    buttons = c('csv')
+  ))
+```
+
+**Note**:
+
+It is OK to list all possible pairs of control and test groups in this file. The workflow performs a comparison only when data are available from BOTH control and test groups. 
+
+If `--comparison` is not set, reads counts in consensus peaks will be generated and by default saved to 2_consensus_peaks/02_differential_peaks/_read_counts_in_peak/ (or custom $pubDir). This is useful for calling differential peaks outside the workflow. 
+
+\
+
+#### `--outdir path/to/output/directory/` 
+
+Output directory. Default: `./Analysis/` 
+
+\
+
+#### `--save_trimmed` 
+
+Save trimmed fastq reads, which is useful for experimenting different Bowtie2 parameters. Default: false 
+
+\
+
+### Pipeline options
+
+#### `--workflow "cutandrun"` 
+
+Choose a subworkflow based on the analysis type, "cutandrun" for experimental samples and "process_controls" for process controls. Default: `cutandrun` 
+
+\
+
+#### `--run_combine_igg`, `--igg_group` and `--skip_individual_igg`
+
+These three options control the usage of IgG samples.
+
+\
+
+#### `--run_combine_igg` 
+
+Group IgG samples and combine data from the same group as a common control for peak calling. Default: false 
+
+\
+
+#### `--igg_group`
+
+Define IgG groups. Possible values are the following.
+
+- all: combine all IgG samples to create a common control for all target samples. \
+- custom: define custom IgG grouping under column "igg_group" in either `--input` or `--metadata`. \
+- group: combine IgG replicates from the same sample group. \
+
+\
+
+#### `--skip_individual_igg`
+
+Do not call peaks using individual IgG samples as control. Default: false.
+
+With `--run_combine_igg true`, this option is set to true.
+
+\
+
+#### `--run_summary_plots`
+
+Generate data for genome browser tracks and make heatmaps. Default: true.
+
+\
+
+### Peak calling
+
+#### `--min_replicates`
+
+Minimum replicates to define replicated peaks. Default: 2.
+
+\
+
+### References
+
+#### `--genome "target genome"` 
+
+Target genome. The value should exist in iGenome references, e.g. hg38, mm10. 
+
+\
+
+#### `--igenomes_base path/to/igenomes` 
+
+Path to the directory of iGenome references. Also see "Resource for rhino/gizmo users".
+
+\
+
+#### `--local_assets`
+
+Path to the local directory of supporting files. Also see "Resource for rhino/gizmo users".
+
+\
+
+#### `--spikein_genome "spikein genome"` 
+
+Spike-in genome. The value should exist in iGenome references. Default: `K12-MG1655` 
+
+\
+
+### Flow switching
+
+#### `--only_alignment` 
+Only run until Bowtie2 alignment. Default: false 
+
+\
+
+#### `--only_filtering` 
+Only run until markdupliate/deduplicate reads. Default: false 
+
+\
+
+#### `--only_input` 
+Only check input and generate a sample sheet. Default: false 
+
+\
+
+#### `--only_peak_calling` 
+Only run until individual peak calling. Default: false 
+
+\
+
+### Process controls
+
+#### `--igg_dir` and `--use_igg`
+
+These two options control the usage of IgG for calling peaks from process controls.
+
+`--igg_dir` /path/to/IgG/dir/. Bam files for MACS2 and bedGraph for SEACR. 
+
+`--use_igg` [true, false]. Use IgG for peak calling if data is available from `--igg_dir`. Default: true.
+
+\
+
+## Resources for rhino/gizmo users
+
+### Example params.json and nextflow.config
+
+**See `/fh/fast/_SR/Genomics/proj/fwu/nextflow/cutandrun/assets/params_config/`.**
+
+nextflow.config - set up working environment. env.R_LIBS and params.local_assets are shared paths. May need to modify other paths pointing to users’ space with written permission. \
+
+params.json - parameters for analyzing experimental samples. \
+
+params.CnR_PC.json - parameters for analyzing CnR process controls. \
+
+params.CnT_PC.json - parameters for analyzing CnT process controls. \
+
+### {.unnumbered .unlisted}
+
+$$\\[0.2in]$$
+
+### Demo analysis
+
+**See `/fh/fast/_SR/Genomics/proj/fwu/nextflow/cutandrun/demo/experimental_samples/`.**
+
+#### Deliverables
+
+- `params.outdir` (Default: Analysis/) saves the analysis results.\
+
+- `params.outdir/00_analysis_report.html` provides a summary of results, description of deliverables and relevant references.\
+
+#### {.unnumbered .unlisted}
+
+$$\\[0.1in]$$
+
+#### Workflow reports and debugging
+
+- `./nextflow_report.html` - nextflow report (upon workflow completion or failure) in the launch directory. This file contains a comprehensive summary of the workflow run.\
+
+- `${params.outdir}/pipeline_info/samplesheet.valid.csv` - the formatted samplesheet (merging `--input` and `--metadata`). This file is convenient for a rerun, e.g. `bash run.sh --input samplesheet.valid.csv`.\
+
+- `${params.outdir}/pipeline_info/execution_trace.txt` - This file saves the cached locations of each analysis. \
+
+- `./saved_data/` - This directory (saved under the launch directory) contains a R markdown file and necessary data files to regenerate `${params.outdir}/00_analysis_report.html` in case modifications are needed, e.g. figure height and width. \
+
+
+#### {.unnumbered .unlisted}
+
+$$\\[0.2in]$$
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
