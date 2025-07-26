@@ -126,7 +126,7 @@ pca_log2rpkm <- function(y, out.dir, prefix, var.genes = NULL, color = NULL, plo
 run_da <- function(
     y0, out.prefix,
     control.group, test.group, group=NULL,
-    fdr=0.01, lfc=1, fdr2=NULL, lfc2=NULL,
+    fdr=0.01, fc=1, fdr2=NULL, fc2=NULL,
     report.cpm=F, report.rpkm=T,
     TMM=T, method = 'QL',
     rename.feature = NULL, feature.length = 'length',
@@ -186,20 +186,19 @@ run_da <- function(
     }
 
     ## prepare for plots
-    is.sig <- decideTests(object = test,adjust.method = 'BH',p.value = fdr,lfc = lfc)
     df <- test$table
     df$FDR <- p.adjust(df$PValue, method = 'BH')
-    df$is.sig <- as.vector(is.sig)
+    df$is.sig <- (df$FDR < fdr) * sign(df$logFC) * (abs(df$logFC) > log2(fc))
 
     ## convert y$group back ####
     y$samples$group <- ifelse(y$samples$group %in% 'control', control.group, test.group)
 
     ## write out results ####
-    # saveRDS(list(y=y, design=design, fit=fit, test=test), paste(out.dir,'da.rds',sep = '/'))
+    
     if(!is.null(rename.feature)){colnames(test$genes)[1] <- rename.feature}
     df <- cbind(test$genes,df[c('logFC','logCPM','PValue','FDR','is.sig')])
-    if(!is.null(fdr2) & !is.null(lfc2)){
-        df$is.sig2 <- (df$FDR < fdr2) * sign(df$logFC) * (abs(df$logFC) > lfc2)
+    if(!is.null(fdr2) & !is.null(fc2)){
+        df$is.sig2 <- (df$FDR < fdr2) * sign(df$logFC) * (abs(df$logFC) > log2(fc2))
     }
     if(report.cpm){
         cpm <- cpm(y, normalized.lib.sizes = T, log = F)
@@ -221,10 +220,10 @@ run_da <- function(
         control.samples = sum(y$samples$group %in% control.group),
         test.samples = sum(y$samples$group %in% test.group),
         features.tested = nrow(y),
-        features.up = sum(is.sig %in% 1),
-        features.down = sum(is.sig %in% -1),
+        features.up = sum(df$is.sig %in% 1),
+        features.down = sum(df$is.sig %in% -1),
         FDR.cutoff = fdr,
-        FC.cutoff = round(2^lfc,1)
+        FC.cutoff = fc
     )
     if(!is.null(target)){
         df_sum$target <- target
@@ -237,7 +236,7 @@ run_da <- function(
                 features.up2 = sum(df$is.sig2 %in% 1),
                 features.down2 = sum(df$is.sig2 %in% -1),
                 FDR.cutoff2 = fdr2,
-                FC.cutoff2 = round(2^lfc2,1)
+                FC.cutoff2 = fc2
             )
         )
     }
@@ -389,9 +388,9 @@ plot_volcano <- function(df, out.prefix, plot.title = ""){
 }
 
 ## recompute is.sig2
-recal_sig <- function(txt, col.sig, fdr, lfc){
+recal_sig <- function(txt, col.sig, fdr, fc){
     de <- read.delim(txt)
-    de[,col.sig] <- sign(de$logFC) * (abs(de$logFC) > lfc) * (de$FDR < fdr)
+    de[,col.sig] <- sign(de$logFC) * (abs(de$logFC) > log2(fc)) * (de$FDR < fdr)
     write.table(de, txt, sep = '\t', quote = F, row.names = F)
     return(
         data.frame(
@@ -401,13 +400,13 @@ recal_sig <- function(txt, col.sig, fdr, lfc){
             features.up = sum(de[,col.sig] %in% 1),
             features.down = sum(de[,col.sig] %in% -1),
             FDR.cutoff = fdr,
-            FC.cutoff = round(2^lfc,1)
+            FC.cutoff = fc
         )
     )
 }
 
 ## wrapper
-run_one_comparison <- function(y0, control.group, test.group, out.dir, prefix, plot.title, fdr, lfc, fdr2, lfc2, tgt){
+run_one_comparison <- function(y0, control.group, test.group, out.dir, prefix, plot.title, fdr, fc, fdr2, fc2, tgt){
     k <- sapply(
         strsplit(y0$genes$sample.groups, split = ','),
         function(v){sum(c(control.group, test.group) %in% v) > 0 }) > 0 # filter peaks present in either control or test group
@@ -421,7 +420,7 @@ run_one_comparison <- function(y0, control.group, test.group, out.dir, prefix, p
         test.group = gsub('-', '_', test.group),
         group = gsub('-', '_', y0$samples$sample_group),
         feature.length = 'length',
-        fdr = fdr, lfc = lfc, fdr2 = fdr2, lfc2 = lfc2,
+        fdr = fdr, fc = fc, fdr2 = fdr2, fc2 = fc2,
         target = tgt
     )
 
@@ -454,7 +453,7 @@ run_one_comparison <- function(y0, control.group, test.group, out.dir, prefix, p
 
 }
 
-wrapper_one_conp <- function(ss, cmp, tgt, conp.bed, count.txts, fdr = 0.05, lfc = log2(1.5), fdr2 = 0.01, lfc2 = 1){
+wrapper_one_conp <- function(ss, cmp, tgt, conp.bed, count.txts, fdr, fc, fdr2, fc2){
     out.dir <- gsub('\\.bed$', '', basename(conp.bed))
     if(!dir.exists(out.dir)){dir.create(out.dir, recursive = T)}
 
@@ -479,7 +478,7 @@ wrapper_one_conp <- function(ss, cmp, tgt, conp.bed, count.txts, fdr = 0.05, lfc
     ## run DGE ####
     dp <- mapply(
         run_one_comparison,
-        MoreArgs = list(y0 = y0, out.dir = out.dir, fdr = 0.05, lfc = log2(1.5), fdr2 = 0.01, lfc2 = 1, tgt = tgt),
+        MoreArgs = list(y0 = y0, out.dir = out.dir, fdr = fdr, fc = fc, fdr2 = fdr2, fc2 = fc2, tgt = tgt),
         cmp$control.group,
         cmp$test.group,
         cmp$out.prefix,
@@ -502,21 +501,29 @@ wrapper_one_conp <- function(ss, cmp, tgt, conp.bed, count.txts, fdr = 0.05, lfc
 
 ## read arguments ####
 args <- as.vector(commandArgs(T)) # ss, cmp, path/to/fragmentCounts.txt, path/to/conp.bed
-ss <- read.csv(args[1])
-if (grepl('dummy_file', args[2])){
-    cat(args[2], "is a dummy file! Provide --comparison path/to/comparison_file (a comparison table in csv, txt, tsv or rds format)!")
+
+lst <- strsplit(args, split = '=')
+for (x in lst){
+    assign(x[1],x[2])
+} # read arguments: ss, comparison, rds, fdr, fc, fdr2, fc2
+rm(lst)
+
+ss <- read.csv(ss_csv)
+
+if (grepl('dummy_file', cmp_file)){
+    cat(cmp_file, "is a dummy file! Provide --comparison path/to/comparison_file (a comparison table in csv, txt, tsv or rds format)!")
     quit()
-}else if (file.size(args[2]) == 0){
-   cat( args[2], "is empty!")
+}else if (file.size(cmp_file) == 0){
+   cat( cmp_file, "is empty!")
     quit()
-}else if (grepl('.csv$', args[2])){
-    cmp <- read.csv(args[2])
-}else if (grepl('.rds$', args[2])){
-    cmp <- readRDS(args[2])
-}else if (grepl('.txt$|.tsv$', args[2])){
-    cmp <- read.delim(args[2])
+}else if (grepl('.csv$', cmp_file)){
+    cmp <- read.csv(cmp_file)
+}else if (grepl('.rds$', cmp_file)){
+    cmp <- readRDS(cmp_file)
+}else if (grepl('.txt$|.tsv$', cmp_file)){
+    cmp <- read.delim(cmp_file)
 }else{
-    stop(paste(args[2], "should be .csv, .txt, .tsv or .rds!"))
+    stop(paste(cmp_file, "should be .csv, .txt, .tsv or .rds!"))
 }
 if(!'out.prefix' %in% colnames(cmp)){
     cmp$out.prefix <- paste(cmp$test.group, cmp$control.group, sep = '_vs_')
@@ -525,7 +532,10 @@ if(!'plot.title' %in% colnames(cmp)){
     cmp$plot.title <- paste(cmp$test.group, cmp$control.group, sep = ' vs ')
 }
 
-tgt <- args[3]
+if (exists('fdr')){ fdr <- as.numeric(fdr) }else{ fdr <- 0.05 }
+if (exists('fc')){ fc <- as.numeric(fc) }else{ fc <- 1.5 }
+if (exists('fdr2')){ fdr2 <- as.numeric(fdr2) }else{ fdr2 <- 0.01 }
+if (exists('fc2')){ fc2 <- as.numeric(fc2) }else{ fc2 <- 2 }
 
 conp.bed.all <- list.files('conp/', full.names = T)
 count.txts.all <- list.files('counts/', full.names = T)
@@ -534,7 +544,7 @@ count.txts.all <- list.files('counts/', full.names = T)
 dp.list <- list()
 for (conp.bed in conp.bed.all){
     count.txts <- grep(gsub('.bed$', '', basename(conp.bed)), count.txts.all, value = T)
-    dp.list[[basename(conp.bed)]] <- wrapper_one_conp(ss, cmp, tgt, conp.bed, count.txts)
+    dp.list[[basename(conp.bed)]] <- wrapper_one_conp(ss, cmp, tgt, conp.bed, count.txts, fdr, fc, fdr2, fc2)
 
 }
 if (length(dp.list) > 0){

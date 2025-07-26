@@ -6,11 +6,15 @@ options(stringsAsFactors = F)
 library(dplyr)
 
 ## functions ####
-get_fastqs <- function(fq_dirs, workflow){
+get_fastqs <- function(
+    fq_dirs, workflow, 
+    r1_pattern = "_S[0-9]+(_L[0-9]+)?_R1_",
+    r2_pattern = "_S[0-9]+(_L[0-9]+)?_R2_"
+    ){
     ## get paths to fastq files
     fqs <- normalizePath(grep('undetermined', list.files(fq_dirs, recursive = T, full.names = T, pattern = "fastq.gz"), invert = T, value = T, ignore.case = T))
-    fqs1 <- sort(grep("_S[0-9]+(_L[0-9]+)?_R1_", fqs, value = T))
-    fqs2 <- sort(grep("_S[0-9]+(_L[0-9]+)?_R2_", fqs, value = T))
+    fqs1 <- sort(grep(r1_pattern, fqs, value = T))
+    fqs2 <- sort(grep(r2_pattern, fqs, value = T))
     
     nfq1 <- length(fqs1)
     nfq2 <- length(fqs2)
@@ -60,11 +64,20 @@ get_fastqs <- function(fq_dirs, workflow){
 
 ## read arguments ####
 args <- as.vector(commandArgs(T))
-workflow <- args[1]
-if(file_test('-f', args[2])){
-    input_dirs <- scan(args[2], what = 'character')
-}else if (file_test('-d', args[2])){
-    input_dirs <- args[2]
+lst <- strsplit(args, split = '=')
+for (x in lst){
+    assign(x[1],x[2])
+} # read arguments: workflow r1_pattern r2_pattern
+rm(lst)
+
+if(!exists('r1_pattern')){r1_pattern <- "_S[0-9]+(_L[0-9]+)?_R1_"}
+if(!exists('r2_pattern')){r2_pattern <- "_S[0-9]+(_L[0-9]+)?_R2_"}
+
+fqs <- list.files('fastq', full.names = T)
+if(file_test('-f', fqs[1])){
+    input_dirs <- scan(fqs[1], what = 'character')
+}else if (file_test('-d', fqs[1])){
+    input_dirs <- fqs[1]
 }else{
     stop("--input_dir takes either path/to/fastq/dir or a file containing paths/to/fastq/dir (one path in each row)")
 }

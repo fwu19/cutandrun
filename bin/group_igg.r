@@ -136,12 +136,14 @@ igg_group <- args[3]
 ss <- read.csv(in_csv)
 if (igg_group == 'group'){
     ss$igg_id <- paste0(ss$sample_group, '_IgG')
+    ss$igg_group <- ss$sample_group
 }else if (igg_group == 'all'){
     ss$igg_id <- 'combined_IgG'
-}else if (igg_group %in% colnames(ss)){
-    ss$igg_id <- paste0(ss[,igg_group], '_IgG')
+    ss$igg_group <- 'combined'
+}else if (igg_group == 'custom' & 'igg_group' %in% colnames(ss)){
+    ss$igg_id <- paste0(ss$igg_group, '_IgG')
 }else{
-    stop("--igg_group ['group', 'all', column_name_in_samplesheet]\n")
+    stop("--igg_group ['group', 'all', 'custom']\n Use column igg_group to define custom IgG grouping\n")
 }
 ss$control <- ifelse(ss$is_control == "true", "", ss$igg_id)
 ss$control_group <- ifelse(ss$is_control == 'true', ss$igg_id, ss$control)

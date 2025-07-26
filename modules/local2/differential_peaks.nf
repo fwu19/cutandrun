@@ -13,8 +13,9 @@ process DIFFERENTIAL_PEAKS {
     path ( "*" ), optional:true
 
     script:
+    def args = task.ext.args ?: ''
     """
-    differential_peaks.r $samplesheet $comparison $target
+    differential_peaks.r ss_csv=$samplesheet cmp_file=$comparison tgt=$target $args
     rm -r $samplesheet $comparison counts/ conp/
     """
 

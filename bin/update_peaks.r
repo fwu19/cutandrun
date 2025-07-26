@@ -9,6 +9,12 @@ library(dplyr)
 add_genomic_locations <- function(bed, ann_dir = 'peak_annotations'){
     peaks <- read.delim(bed, header = F)[1:5]
     colnames(peaks)[1:5] <- c('#chrom', 'start', 'end', 'peak_id', 'sample_groups')
+    peaks <- peaks %>% 
+        mutate(
+            score = 1000,
+            strand = '.'
+        ) %>% 
+        relocate(score, strand, .after = 'peak_id')
     
     txt <- file.path(ann_dir, gsub('.bed$', '.annotation.txt', basename(bed)))
     if (!file.exists(txt)){ return(peaks) }

@@ -17,8 +17,9 @@ process GET_FASTQ_PATHS {
     task.ext.when == null || task.ext.when
 
     script:
+    def args = task.ext.args ?: ''
     """
-    get_fastq_paths.r $workflow fastq/*
+    get_fastq_paths.r workflow=$workflow $args
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
