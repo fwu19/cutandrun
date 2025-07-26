@@ -2,21 +2,22 @@
 ## Deliverables
 
 **Note**\n
-The following folders/files will be delivered when relevant analyses are performed.\
+The following folders/files will be delivered when relevant analyses are performed. Results using combined IgG data are in folder with suffixed `_combined_igg`. \
 \
 
+### 1_individual_samples/
 #### 01_prealign/
 
 FastQC output of raw fastq and adapter-trimmed fastq.\
 
-$$\\[0.1in]$$
+$$\\[0.05in]$$
 
 #### 02_alignments/bowtie2/
 
 Read alignment to the target genome and the spike-in genome. \
 Mapped reads to the target genome are processed by GATK MarkDuplicates to mark duplicated reads and remove duplicated reads. To save space, only alignment files to the target genome are delivered. 
 
-$$\\[0.1in]$$
+$$\\[0.05in]$$
 
 #### 03_genome_coverage/
 
@@ -24,54 +25,16 @@ $$\\[0.1in]$$
 
 *normalized_bigwig/* -- normalized genome coverage (CPM, count per million) of all mapped reads. Recommended input for IGV.
 
-$$\\[0.1in]$$
+$$\\[0.05in]$$
 
 
-#### 04_peak_calling/
+#### 04_peak_calling/ 
+#### 04_peak_calling_combined_igg/
 
-- 1_individual_samples/
-
-`macs2_broad/`, `macs2_narrow/` and `searc/` store MACS2 broad peaks, MACS2 narrow peaks and SEACR peaks, respectively.
+- `macs2_broad/`, `macs2_narrow/` and `searc/` store MACS2 broad peaks, MACS2 narrow peaks and SEACR peaks, respectively.
 
 If IgG is available, peaks are called with and without IgG, and common peaks (file names containing "filtered") are used for further analysis. Otherwise target-only peaks (file names containing "noigg") are used for further analysis.
 
-
-$$\\[0.05in]$$
-
-- 2_peaks_by_group/
-
-The final set of peaks from all replicates in the group are pooled and merged into a set of non-overlapping peaks, and are referred to as **group peaks**.
-
-*multiple_replicates/* -- Peaks present in at least 2 replicates. \
-*single_replicate/* -- if only one replicate has peaks or only one replicate is present in the dataset, the same peak file from 1_individual_samples/ is copied here and renamed accordingly.
-
-Files are named as `[sample group]_[target].[peak caller]_peaks.bed`.
-
-$$\\[0.05in]$$
-
-- 3_consensus_peaks_by_target/
-
-Consensus peaks for each target by merging overlapping **group peaks** across sample groups.\
-\
-Files are named as `[target].[peak caller]_peaks.bed`.
-
-$$\\[0.05in]$$
-
-- 4_annotate_consensus_peaks/
-
-HOMER annotation of consensus peaks.\
-_gtf/ -- GTF file used for HOMER peak annotation. \
-
-$$\\[0.05in]$$
-
-- 5_differential_consensus_peaks/
-
-_reads_counts_in_peak/ -- read counts in each sample from each consensus peak.\
-
-Each comparison has a subfolder with the following files.\
-`rawCounts.txt` contains read counts of each consensus peak region across samples.\
-`[target].txt` has edgeR output (logFC, logCPM, p-value, BH-adjusted FDR), normalized expression in FPKM (fragments per kilo base per million). In column is.sig and (optionally) is.sig2 of the text file, differential peaks are defined with two sets of thresholds (see FDR.cutoff, FC.cutoff, FDR.cutoff2 and FC.cutoff2 in the section **DP summary** for cutoff values). \
-PDF files contain PCA, MD/MA and volcano plots (also included in the section **DE plots**). \
 
 $$\\[0.05in]$$
 
@@ -80,9 +43,55 @@ multiqc/multiqc_report.html -- MultiQC report of various metrics.
 
 $$\\[0.1in]$$
 
+
+### 2_consensus_peaks/ 
+### 2_consensus_peaks_combined_igg/
+
+#### 01_peak_annotations/
+HOMER annotation of consensus peaks. \
+
+$$\\[0.05in]$$
+
+#### 02_differential_peaks/
+
+_reads_counts_in_peak/ -- read counts in each sample from each consensus peak.\
+
+Each comparison has a subfolder with the following files.\
+`rawCounts.txt` contains read counts of each consensus peak region across samples.\
+`[target].txt` has edgeR output (logFC, logCPM, p-value, BH-adjusted FDR), normalized expression in FPKM (fragments per kilo base per million). In column is.sig and (optionally) is.sig2 of the text file, differential peaks are defined with two sets of thresholds (see FDR.cutoff, FC.cutoff, FDR.cutoff2 and FC.cutoff2 in the section **DP summary** for cutoff values). \
+PDF files contain PCA, MD/MA and volcano plots (also included in the section **DE plots**). \
+
+$$\\[0.1in]$$
+
+### 3_igv_and_plots/ 
+### 3_igv_and_plots_combined_igg/
+
+#### 00_gene_reference/
+Gene GTF and BED files used for peak annotations and plots. \
+
+$$\\[0.05in]$$
+
+#### 01_peak_beds/
+
+Bed files of consensus peaks for each target by merging overlapping peaks from all samples. For a sample group, if peaks were called from multiple replicates, only those shared by more than one replicate were used to generate consensus peaks. \
+
+Files are named as `[target].[peak caller]_peaks.bed`. Besides genome coordinates, composition of sample groups, genomic locations and differential peaks, if available, are included in additional columns. 
+
+$$\\[0.05in]$$
+
+#### 02_CPM_coverage/
+
+normalized genome coverage (CPM, count per million) of all mapped reads, **averaged among replicates of the same group**. 
+
+$$\\[0.05in]$$
+
+
+#### 03_plots/
+- `tornado/` tornado plots of 2kb window around consensus peak centers and 2kb windows around TSS.
+
+$$\\[0.1in]$$
+
 ## {.unnumbered .unlisted}
 
 $$\\[0.5in]$$
-
-
 

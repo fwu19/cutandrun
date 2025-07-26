@@ -37,7 +37,7 @@ library(kableExtra)
 
 ## Summary
 
-This document presents analysis results of Cut & Run or Cut & Tag data.
+This document presents analysis results of Cut & Run, Cut & Tag or CUTAC data.
 
 $$\\[0.5in]$$
 

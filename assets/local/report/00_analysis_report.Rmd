@@ -37,7 +37,7 @@ library(kableExtra)
 
 ## Summary
 
-This document presents analysis results of Cut & Run or Cut & Tag data.
+This document presents analysis results of Cut & Run, Cut & Tag or CUTAC data.
 
 $$\\[0.5in]$$
 
@@ -825,6 +825,7 @@ $$\\[0.5in]$$
 
 
 
+
 ## QC reads {.tabset .tabset-pills}
 
 ### Plots {.tabset .tabset-pills}
@@ -946,17 +947,16 @@ meta %>%
 $$\\[0.5in]$$
 
 
-## Peak calling from individual samples {.tabset .tabset-pills}
+## QC peaks {.tabset .tabset-pills}
+### Each replicate {.tabset .tabset-pills}
 
 **A. Peaks from each sample** - number of peaks called from each library.
 For each peak caller, both target-only peaks and target-against-IgG peaks were called and common peaks (shown as solid dots and referred to as filtered peaks) were retained for further analysis.
 
 **B. Fraction of reads in peak** - fraction of paired-end reads in filtered peaks.
 
-**C-E. Peak width** - peak width distribution of the final set. \
-For clarity, x-axis of each plot is up to 75 percentile of the presented data. 
-Vertical bars indicate the median of violin plots.\
-
+**C. Peak width** - peak width distribution of the filtered set.
+The upper bound of x-axis was limited to the maximum 3rd quantile of datasets.
 
 $$\\[0.1in]$$
 
@@ -984,7 +984,7 @@ if (length(intersect(qc_peak, names(figs))) > 0){
       ))
     
     cat("\n\n")
-    cat("###", tgt, "\n\n")
+    cat("####", tgt, "\n\n")
     print(p2)
     cat("\n\n")
     
@@ -993,15 +993,9 @@ if (length(intersect(qc_peak, names(figs))) > 0){
 
 ```
 
-## {.unnumbered .unlisted}
 
-$$\\[0.5in]$$
-
-
-## Replicated and consensus peaks
 
 ### Replicated peaks {.tabset .tabset-pills}
-
 For each group (i.e. replicates from the same sample group and target as listed in section **Sample sheet**), peaks from all replicates are pooled and merged into a set of non-overlapping peaks.\
 If multiple replicates are available, only **replicated peaks** contributed by at least two replicates (or more replicates if a specific cutoff is applied) are kept for further analysis.\
 If only one replicate is available or only one replicate produces peaks, its peaks is used for further analysis unless excluded specifically otherwise.\
@@ -1075,12 +1069,9 @@ if ('nreps' %in% names(dat)){
 }
 ```
 
-### {.unnumbered .unlisted}
 
-$$\\[0.2in]$$
 
-### Consensus peaks by target {.tabset .tabset-pills}
-
+### Consensus peaks {.tabset .tabset-pills}
 For each target, **group peaks** from all sample groups, e.g. cell line, conditions, are pooled, and overlapping peaks are merged into a set of **consensus peaks**.\
 
 $$\\[0.1in]$$
@@ -1177,14 +1168,9 @@ if ('seacr2macs' %in% names(figs)){
 ```
 
 
-
-
-
-
-## {.unnumbered .unlisted}
+##  {.unlisted .unnumbered}
 
 $$\\[0.5in]$$
-
 
 
 
@@ -1255,128 +1241,98 @@ $$\\[0.5in]$$
 ## Deliverables
 
 **Note**\n
-The following folders/files will be delivered when relevant analyses are performed.\n
+The following folders/files will be delivered when relevant analyses are performed. Results using combined IgG data are in folder with suffixed `_combined_igg`. \
 \
-\
 
-#### [01_prealign/](./01_prealign/)
+### 1_individual_samples/
+#### 01_prealign/
 
-FastQC output of raw fastq and adapter-trimmed fastq, which is described at <https://www.bioinformatics.babraham.ac.uk/projects/fastqc/>
+FastQC output of raw fastq and adapter-trimmed fastq.\
 
-$$\\[0.1in]$$
+$$\\[0.05in]$$
 
-#### [02_alignments/bowtie2/](./02_alignments/bowtie2/)
+#### 02_alignments/bowtie2/
 
 Read alignment to the target genome and the spike-in genome. \
-Mapped reads to the target genome are processed by GATK MarkDuplicates to mark duplicated reads (*markdup/*) and remove duplicated reads (*dedup/*).
+Mapped reads to the target genome are processed by GATK MarkDuplicates to mark duplicated reads and remove duplicated reads. To save space, only alignment files to the target genome are delivered. 
 
-$$\\[0.1in]$$
+$$\\[0.05in]$$
 
-#### [03_peak_calling/](./03_peak_calling/)
+#### 03_genome_coverage/
 
-To generate group peaks and consensus peaks, peaks files named with \*.filtered.\* will be used if available, or target-only peaks in files named with \*noigg\* will be used, which are referred to as the final set of peaks from a sample.
+*unnormalized_bedgraph/* -- unnormalized genome coverage of all mapped reads. Also input for SEACR peak calling.
 
--   macs2_broad/
+*normalized_bigwig/* -- normalized genome coverage (CPM, count per million) of all mapped reads. Recommended input for IGV.
 
-MACS2 broad peaks called with all IgG reads
-
-*sample_id.macs2_igg_broad_peaks.broadPeak* -- IgG-controlled broad peaks
-
-*sample_id.macs2_noigg_broad_peaks.broadPeak* -- target-only broad peaks
-
-*sample_id.macs2_noigg_broad_peaks.filtered.broadPeak* -- target-only broad peaks that overlap with IgG-controlled broad peaks
+$$\\[0.05in]$$
 
 
--   macs2_narrow/
+#### 04_peak_calling/ 
+#### 04_peak_calling_combined_igg/
 
-MACS2 narrow peaks called with all IgG reads
+- `macs2_broad/`, `macs2_narrow/` and `searc/` store MACS2 broad peaks, MACS2 narrow peaks and SEACR peaks, respectively.
 
-*sample_id.macs2_igg_narrow_peaks.narrowPeak* -- IgG-controlled narrow peaks
-
-*sample_id.macs2_noigg_narrow_peaks.narrowPeak* -- target-only narrow peaks
-
-*sample_id.macs2_igg_narrow_peaks.filtered.narrowPeak* -- IgG-controlled narrow peaks that overlap with target-only narrow peaks
+If IgG is available, peaks are called with and without IgG, and common peaks (file names containing "filtered") are used for further analysis. Otherwise target-only peaks (file names containing "noigg") are used for further analysis.
 
 
--   seacr/
+$$\\[0.05in]$$
 
-SEACR peaks called with deduplicated IgG reads
-
-*sample_id.seacr_igg.stringent.bed* -- IgG normalized, stringent mode\*
-
-*sample_id.seacr_noigg.stringent.bed* -- target only, top 1% signal
-
-*sample_id.seacr_igg.stringent.filtered.bed* -- IgG normalized peaks that overlap with target-only peaks
-
-
-$$\\[0.1in]$$
-
-#### [04_reporting/](./04_reporting/)
-multiqc/ contains MultiQC report of various metrics.
-
-$$\\[0.1in]$$
-
-#### [05_genome_coverage/](./05_genome_coverage/)
-
-*sample_id.markdup.unnormalized.bedGraph* -- unnormalized genome coverage of all mapped reads.
-
-*sample_id.markdup.CPM.bigWig* -- normalized genome coverage (CPM, count per million) of all mapped reads.
-
-*sample_id.dedup.unnormalized.bedGraph* -- unnormalized genome coverage of deduplicated reads.
-
-*sample_id.dedup.CPM.bigWig* -- normalized genome coverage (CPM, count per million) of deduplicated reads.
+#### 05_multiqc/
+multiqc/multiqc_report.html -- MultiQC report of various metrics.
 
 $$\\[0.1in]$$
 
 
-#### [06_peaks_by_group/](./06_peaks_by_group/)
+### 2_consensus_peaks/ 
+### 2_consensus_peaks_combined_igg/
 
-The final set of peaks from all replicates in the group were pooled and merged into a set of non-overlapping peaks.
+#### 01_peak_annotations/
+HOMER annotation of consensus peaks. \
 
-*multiple_replicates/* -- Peaks present in at least 2 replicates. \
-*single_replicate/* -- if only one replicate has peaks or only one replicate is present in the dataset, the same peak file from 03_peak_calling/ is copied here and renamed accordingly.
+$$\\[0.05in]$$
 
-Files are named as below. `group` = [sample group]_[target] \
-*group.macs2_narrow_peaks.bed* -- MACS2 narrow peaks \
-*group.macs2_broad_peaks.bed* -- MACS2 broad peaks\
-*group.seacr_peaks.bed* -- SEACR peaks\
+#### 02_differential_peaks/
 
-$$\\[0.1in]$$
-
-#### [07_consensus_peaks_by_target/](./07_consensus_peaks_by_target/)
-
-Consensus peaks for each target by merging overlapping group peaks across sample groups.\
-\
-*[target].macs2_narrow_peaks.bed* -- consensus MACS2 narrow peaks \
-*[target].macs2_broad_peaks.bed* -- consensus MACS2 broad peaks \
-*[target].seacr_peaks.bed* -- consensus SEACR peaks \
-
-_annotation/ -- HOMER annotation of consensus peaks.\
-_annotation/_gtf/ -- GTF file used to run HOMER peak annotation. \
-
-
-$$\\[0.1in]$$
-
-
-
-
-
-
-#### [08_differential_peaks/](./08_differential_peaks/)
-
-_reads_counts_in_peak/ -- read counts in each consensus peak and each sample.\
+_reads_counts_in_peak/ -- read counts in each sample from each consensus peak.\
 
 Each comparison has a subfolder with the following files.\
-  *rawCounts.txt* contains read counts of each consensus peak region across samples.\
-  *[target].txt* has edgeR output (logFC, logCPM, p-value, BH-adjusted FDR), normalized expression in FPKM (fragments per kilo base per million). In column is.sig and (optionally) is.sig2 of the text file, differential peaks are defined with two sets of thresholds (see FDR.cutoff, FC.cutoff, FDR.cutoff2 and FC.cutoff2 in the section **DP summary** for cutoff values). \
-  PDF files contain PCA, MD/MA and volcano plots (also included in the section **DE plots**). \
+`rawCounts.txt` contains read counts of each consensus peak region across samples.\
+`[target].txt` has edgeR output (logFC, logCPM, p-value, BH-adjusted FDR), normalized expression in FPKM (fragments per kilo base per million). In column is.sig and (optionally) is.sig2 of the text file, differential peaks are defined with two sets of thresholds (see FDR.cutoff, FC.cutoff, FDR.cutoff2 and FC.cutoff2 in the section **DP summary** for cutoff values). \
+PDF files contain PCA, MD/MA and volcano plots (also included in the section **DE plots**). \
+
+$$\\[0.1in]$$
+
+### 3_igv_and_plots/ 
+### 3_igv_and_plots_combined_igg/
+
+#### 00_gene_reference/
+Gene GTF and BED files used for peak annotations and plots. \
+
+$$\\[0.05in]$$
+
+#### 01_peak_beds/
+
+Bed files of consensus peaks for each target by merging overlapping peaks from all samples. For a sample group, if peaks were called from multiple replicates, only those shared by more than one replicate were used to generate consensus peaks. \
+
+Files are named as `[target].[peak caller]_peaks.bed`. Besides genome coordinates, composition of sample groups, genomic locations and differential peaks, if available, are included in additional columns. 
+
+$$\\[0.05in]$$
+
+#### 02_CPM_coverage/
+
+normalized genome coverage (CPM, count per million) of all mapped reads, **averaged among replicates of the same group**. 
+
+$$\\[0.05in]$$
+
+
+#### 03_plots/
+- `tornado/` tornado plots of 2kb window around consensus peak centers and 2kb windows around TSS.
 
 $$\\[0.1in]$$
 
 ## {.unnumbered .unlisted}
 
 $$\\[0.5in]$$
-
 
 
 ## Methods
@@ -1392,7 +1348,7 @@ MACS2 was run in both target-only and IgG-controlled (using all IgG reads) modes
 For narrow peaks used for TFs and some histone marks (e.g. H3K4me3), IgG-controlled peaks were kept for downstream analysis if they meet the following criteria: overlapping with treatment-only peaks, q-value \< 0.01 and enrichment \> 2. For broad peaks used for some histone marks (e.g. H3K27me3) and proteins targeting broad domains, target-only peaks were kept for downstream analysis if they meet the follow criteria: overlapping with IgG-controlled peaks, q-value \< 0.01 and enrichment \> 2.
 SEACR was run with IgG normalization (using deduplicated reads) and with top 1% of peaks reported, both in stringent mode. IgG-normalized peaks that overlap with top 1% of peaks were kept for further analysis.
 
-For each target, differential peaks between two groups were detected using Bioconductor package [edgeR 3.36.0](https://academic.oup.com/bioinformatics/article/26/1/139/182458).
+For each target, differential peaks between two groups were detected using Bioconductor package [edgeR](https://academic.oup.com/bioinformatics/article/26/1/139/182458).
 Frist, replicated peaks were generated by merging peaks called from individual samples and keeping those present in at least 2 replicates. Next consensus peaks were generated by merging replicated peaks across all sample groups. For a comparison between two groups, consensus peaks present in either group were filtered by edgeR function filterByExpr with min.count = 10 and min.total.count = 15. The resultant count matrix was normalized using [TMM method](https://genomebiology.biomedcentral.com/articles/10.1186/gb-2010-11-3-r25) and subject to significance testing with generalized linear models and quasi-likelihood method. Peaks were deemed significantly differential by the thresholds described in section **Differential Peaks**.
 
 ## {.unnumbered .unlisted}
@@ -1402,7 +1358,8 @@ $$\\[0.5in]$$
 
 ## Acknowledgement
 
-(For publication, please include the following acknowledgement) This research was supported by the Genomics & Bioinformatics Shared Resource of the Fred Hutch/University of Washington/Seattle Children's Cancer Consortium ([P30 CA015704](https://www.cancerconsortium.org/about.html)).
+(For publication, please include the following acknowledgement) This research was supported by the Genomics & Bioinformatics Shared Resource, RRID:SCR_022606, of the Fred Hutch/University of Washington/Seattle Children’s Cancer Consortium (P30 CA015704).
+
 
 ## {.unnumbered .unlisted}
 
