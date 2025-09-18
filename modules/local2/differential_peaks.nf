@@ -1,5 +1,6 @@
 process DIFFERENTIAL_PEAKS {
-    module = ['fhR/4.1.2-foss-2021b']
+    //module = ['fhR/4.1.2-foss-2021b']
+    container "docker://fwu19/r-libs:4.1.2"
 
     label "process_single"
 

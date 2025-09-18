@@ -3,7 +3,8 @@ process ORIGINAL_PEAKS {
 
     tag "Collect metrics of original peaks from ${meta.id}"
 
-    module = ['fhR/4.1.2-foss-2021b']
+    //module = ['fhR/4.1.2-foss-2021b']
+    container "docker://fwu19/r-libs:4.1.2"
 
     input:
     tuple val(meta), path( "peaks/*" )
