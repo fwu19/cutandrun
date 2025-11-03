@@ -20,7 +20,7 @@ process GET_FASTQ_PATHS {
     script:
     def args = task.ext.args ?: ''
     """
-    get_fastq_paths.r workflow=$workflow $args
+    get_fastq_paths.r workflow=$workflow r1_pattern="${params.r1_pattern}" r2_pattern="${params.r2_pattern}" $args
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

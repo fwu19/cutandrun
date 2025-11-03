@@ -8,8 +8,8 @@ library(dplyr)
 ## functions ####
 get_fastqs <- function(
     fq_dirs, workflow, 
-    r1_pattern = "_S[0-9]+(_L[0-9]+)?_R1_",
-    r2_pattern = "_S[0-9]+(_L[0-9]+)?_R2_"
+    r1_pattern,
+    r2_pattern
     ){
     ## get paths to fastq files
     fqs <- normalizePath(grep('undetermined', list.files(fq_dirs, recursive = T, full.names = T, pattern = "fastq.gz"), invert = T, value = T, ignore.case = T))
@@ -32,7 +32,7 @@ get_fastqs <- function(
         single_end = ifelse(nfq2 == 0, 'true', 'false')
     ) %>% 
         mutate(
-            id = gsub("_S[0-9]+(_L[0-9]+)?_R1_.*", "", basename(fastq_1)),
+            id = gsub(paste0(r1_pattern, ".*"), "", basename(fastq_1)),
             fastq_2 = ifelse(single_end, "", fqs2)
         ) %>% 
         mutate(
@@ -82,7 +82,7 @@ if(file_test('-f', fqs[1])){
     stop("--input_dir takes either path/to/fastq/dir or a file containing paths/to/fastq/dir (one path in each row)")
 }
 
-ss <- get_fastqs(input_dirs, workflow)
+ss <- get_fastqs(input_dirs, workflow, r1_pattern, r2_pattern)
 
 ss %>% 
     write.table('input.csv', sep = ',', quote = F, row.names = F)

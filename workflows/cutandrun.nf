@@ -789,7 +789,7 @@ workflow CUTANDRUN {
     /*
     * make plots, e.g. heatmaps
     */
-    if (params.run_local_peak_qc && params.run_summary_plots & !params.skip_individual_igg){
+    if (params.run_local_peak_qc && params.run_summary_plots & !params.skip_individual_igg & params.workflow == "cutandrun"){
         SUMMARY_PLOTS(
             ch_bigwig_markdup,
             QC_PEAKS.out.conp_bed.ifEmpty([]),

@@ -23,7 +23,7 @@ process GENERATE_REPORT_PROCESS_CONTROLS {
     script:
     """
     prepare_report_process_controls.r
-    mv report/*.Rmd .
+    cp report/*.Rmd .
     render_report.r *.Rmd
 
     """
