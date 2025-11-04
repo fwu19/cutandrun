@@ -70,14 +70,6 @@ ch_dt_frag_to_csv_awk = file("$projectDir/bin/dt_frag_report_to_csv.awk", checkI
 ch_multiqc_config        = file("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
 ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multiqc_config) : Channel.fromPath("$projectDir/assets/local/multiqc_config.yml")
 
-// Header files for MultiQC
-ch_frag_len_header_multiqc              = file("$projectDir/assets/multiqc/frag_len_header.txt", checkIfExists: true)
-ch_frip_score_header_multiqc            = file("$projectDir/assets/multiqc/frip_score_header.txt", checkIfExists: true)
-ch_peak_counts_header_multiqc           = file("$projectDir/assets/multiqc/peak_counts_header.txt", checkIfExists: true)
-ch_peak_counts_consensus_header_multiqc = file("$projectDir/assets/multiqc/peak_counts_consensus_header.txt", checkIfExists: true)
-ch_peak_reprod_header_multiqc           = file("$projectDir/assets/multiqc/peak_reprod_header.txt", checkIfExists: true)
-ch_linear_duplication_header_multiqc    = file("$projectDir/assets/multiqc/linear_duplication_header.txt", checkIfExists: true)
-
 
 /*
 ========================================================================================
@@ -90,7 +82,7 @@ def prepare_tool_indices = ["bowtie2"]
 
 // Check peak caller params
 def caller_list = ['seacr', 'macs2']
-callers = params.peakcaller ? params.peakcaller.split(',').collect{ it.trim().toLowerCase() } : ['seacr']
+callers = params.peakcaller ? params.peakcaller.split(',').collect{ it.trim().toLowerCase() } : ['macs2']
 if ((caller_list + callers).unique().size() != caller_list.size()) {
     exit 1, "Invalid variant calller option: ${params.peakcaller}. Valid options: ${caller_list.join(', ')}"
 }
@@ -100,17 +92,6 @@ if ((caller_list + callers).unique().size() != caller_list.size()) {
     IMPORT LOCAL MODULES/SUBWORKFLOWS
 ========================================================================================
 */
-
-/*
- * MODULES
- */
-include { CUT as PEAK_TO_BED         } from '../modules/local/linux/cut'
-include { AWK as AWK_NAME_PEAK_BED   } from "../modules/local/linux/awk"
-include { IGV_SESSION                } from "../modules/local/python/igv_session"
-include { AWK as AWK_EXTRACT_SUMMITS } from "../modules/local/linux/awk"
-include { SAMTOOLS_CUSTOMVIEW        } from "../modules/local/samtools_custom_view"
-include { FRAG_LEN_HIST              } from "../modules/local/python/frag_len_hist"
-//include { MULTIQC                    } from "../modules/local/multiqc"
 
 /*
  * SUBWORKFLOWS
@@ -123,9 +104,7 @@ include { EXTRACT_METADATA_AWK as EXTRACT_BT2_SPIKEIN_META } from "../subworkflo
 include { EXTRACT_METADATA_AWK as EXTRACT_PICARD_DUP_META  } from "../subworkflows/local/extract_metadata_awk"
 include { MARK_DUPLICATES_PICARD                           } from "../subworkflows/local/mark_duplicates_picard"
 include { MARK_DUPLICATES_PICARD as DEDUPLICATE_PICARD     } from "../subworkflows/local/mark_duplicates_picard"
-include { EXTRACT_FRAGMENTS                                } from "../subworkflows/local/extract_fragments"
 include { SAMTOOLS_VIEW_SORT_STATS as FILTER_READS         } from "../subworkflows/local/samtools_view_sort_stats"
-include { DEDUPLICATE_LINEAR                               } from "../subworkflows/local/deduplicate_linear"
 
 /*
 ========================================================================================
@@ -137,14 +116,6 @@ include { DEDUPLICATE_LINEAR                               } from "../subworkflo
  * MODULES
  */
 include { CAT_FASTQ                                                    } from "../modules/nf-core/cat/fastq/main"
-include { PRESEQ_LCEXTRAP                                              } from "../modules/nf-core/preseq/lcextrap/main"
-include { CUSTOM_DUMPSOFTWAREVERSIONS                                  } from "../modules/local/custom_dumpsoftwareversions"
-
-/*
- * SUBWORKFLOWS
- */
-
-
 
 /*
 ========================================================================================
@@ -203,6 +174,7 @@ workflow CUTANDRUN {
      */
     if(params.run_input_check) {
 
+        /* Get fastq paths */
         if ( params.input_dir =~ 'dummy' ){
             if ( params.input =~ 'dummy' ){
                 exit 1, 'Neither --input nor --input_dir is specified!'
@@ -215,8 +187,10 @@ workflow CUTANDRUN {
                 params.workflow
             )
             ch_input = GET_FASTQ_PATHS.out.csv
+            ch_software_versions = ch_software_versions.mix(GET_FASTQ_PATHS.out.versions)
         }
 
+        /* Add metadata */
         ch_metadata = params.metadata ? file( params.metadata, checkIfExists: true ) : ch_dummy_csv
         INPUT_CHECK (
             ch_input,
@@ -225,7 +199,9 @@ workflow CUTANDRUN {
         )
 
         samplesheet = INPUT_CHECK.out.samplesheet
+        ch_software_versions = ch_software_versions.mix(INPUT_CHECK.out.versions)
 
+        /* Generate sample sheet */
         INPUT_CHECK.out.reads
         .map {
             meta, fastq ->
@@ -240,6 +216,7 @@ workflow CUTANDRUN {
         }
         .set { ch_fastq }
 
+        /* Update sample sheet with combined IgG */
         samplesheet_combine_igg = Channel.empty()
         meta_combine_igg = Channel.empty()
         if (params.run_combine_igg){
@@ -249,6 +226,7 @@ workflow CUTANDRUN {
             )
             samplesheet_combine_igg = IGG_CHECK.out.samplesheet
             meta_combine_igg = IGG_CHECK.out.meta
+            ch_software_versions = ch_software_versions.mix(GROUP_IGG.out.versions)
         }
     }
 
@@ -310,7 +288,6 @@ workflow CUTANDRUN {
                 PREPARE_GENOME.out.fasta,
                 PREPARE_GENOME.out.spikein_fasta
             )
-            ch_software_versions          = ch_software_versions.mix(ALIGN_BOWTIE2.out.versions)
             ch_orig_bam                   = ALIGN_BOWTIE2.out.orig_bam
             ch_orig_spikein_bam           = ALIGN_BOWTIE2.out.orig_spikein_bam
             ch_bowtie2_log                = ALIGN_BOWTIE2.out.bowtie2_log
@@ -327,6 +304,7 @@ workflow CUTANDRUN {
             ch_samtools_spikein_stats     = ALIGN_BOWTIE2.out.spikein_stats
             ch_samtools_spikein_flagstat  = ALIGN_BOWTIE2.out.spikein_flagstat
             ch_samtools_spikein_idxstats  = ALIGN_BOWTIE2.out.spikein_idxstats
+            ch_software_versions          = ch_software_versions.mix(ALIGN_BOWTIE2.out.versions)
         }
     }
     //EXAMPLE CHANNEL STRUCT: [[id:h3k27me3_R1, group:h3k27me3, replicate:1, single_end:false, is_control:false], [BAM]]
@@ -490,6 +468,7 @@ workflow CUTANDRUN {
 
         )
         ch_multiqc_data = MULTIQC.out.data
+        ch_software_versions = ch_software_versions.mix(MULTIQC.out.versions)
     }
 
     /*
@@ -532,6 +511,8 @@ workflow CUTANDRUN {
         ch_peaks_final = CALL_PEAKS_PROCESS_CONTROLS.out.peaks_final
         // ch_peaks_final.view()
         // [ meta, [peaks] ]
+
+        ch_software_versions = ch_software_versions.mix(CALL_PEAKS_PROCESS_CONTROLS.out.versions)
     }
 
     if (params.run_local_read_qc){
@@ -539,7 +520,7 @@ workflow CUTANDRUN {
             ch_multiqc_data,
             ch_samtools_bam
         )
-
+        ch_software_versions = ch_software_versions.mix(QC_READS.out.versions)
     }
 
     /*
@@ -587,7 +568,7 @@ workflow CUTANDRUN {
             ch_peaks_final
 
         )
-
+        ch_software_versions = ch_software_versions.mix(QC_PEAKS.out.versions)
     }
 
     /*
@@ -635,7 +616,7 @@ workflow CUTANDRUN {
             ch_peaks_comb_igg_final
 
         )
-
+        ch_software_versions = ch_software_versions.mix(QC_PEAKS_COMB_IGG.out.versions)
     }
 
     /*
@@ -651,7 +632,7 @@ workflow CUTANDRUN {
             ch_peaks_final,
             ch_ref_peaks.ifEmpty([])
         )
-
+        ch_software_versions = ch_software_versions.mix(QC_PROCESS_CONTROLS.out.versions)
     }
 
     /*
@@ -669,6 +650,7 @@ workflow CUTANDRUN {
                 )
                 .map { it -> [ it[1][1][0], it[1][1][1], it[0][1] ] }
         )
+        ch_software_versions = ch_software_versions.mix(READS_IN_CONSENSUS_PEAKS.out.versions)
 
         // if --comparison is a dummy file or empty file is used, throw a warning and continue.
         // if file has contents but not a correct format, throw an error.
@@ -682,6 +664,7 @@ workflow CUTANDRUN {
                 .combine(params.comparison ? Channel.fromPath( params.comparison, checkIfExists: true ) : ch_dummy_csv)
         )
         ch_dp = DIFFERENTIAL_PEAKS.out.data
+        ch_software_versions = ch_software_versions.mix(DIFFERENTIAL_PEAKS.out.versions)
     }
 
     /*
@@ -699,6 +682,7 @@ workflow CUTANDRUN {
                 )
                 .map { it -> [ it[1][1][0], it[1][1][1], it[0][1] ] }
         )
+    ch_software_versions = ch_software_versions.mix(QC_PEAKS_COMB_IGG.out.versions)
 
         // if --comparison is a dummy file or empty file is used, throw a warning and continue.
         // if file has contents but not a correct format, throw an error.
@@ -712,6 +696,7 @@ workflow CUTANDRUN {
                 .combine(params.comparison ? Channel.fromPath( params.comparison, checkIfExists: true ) : ch_dummy_file)
         )
         ch_dp_comb_igg = DIFFERENTIAL_PEAKS_COMB_IGG.out.data
+        ch_software_versions = ch_software_versions.mix(DIFFERENTIAL_PEAKS_COMB_IGG.out.versions)
     }
 
     /*
@@ -736,7 +721,7 @@ workflow CUTANDRUN {
                 DIFFERENTIAL_PEAKS.out.data.flatten().collect().ifEmpty([]),
                 params.local_assets ? Channel.fromPath("${params.local_assets}/report/", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
             )
-
+            ch_software_versions = ch_software_versions.mix(GENERATE_REPORT.out.versions)
 
     }
 
@@ -762,6 +747,7 @@ workflow CUTANDRUN {
                 DIFFERENTIAL_PEAKS_COMB_IGG.out.data.flatten().collect().ifEmpty([]),
                 params.local_assets ? Channel.fromPath("${params.local_assets}/report/", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
             )
+            ch_software_versions = ch_software_versions.mix(GENERATE_REPORT_COMB_IGG.out.versions)
 
 
     }
@@ -782,7 +768,7 @@ workflow CUTANDRUN {
                 params.saved_data ? Channel.fromPath("${params.saved_data}", type: "dir", checkIfExists: true) : Channel.empty(),
                 params.report_rmd ? Channel.fromPath("${params.report_rmd}", checkIfExists: true) : Channel.empty()
             )
-
+            ch_software_versions = ch_software_versions.mix(GENERATE_REPORT_PROCESS_CONTROLS.out.versions)
 
     }
 
@@ -798,6 +784,7 @@ workflow CUTANDRUN {
             params.local_assets ? file("${params.local_assets}/${params.genome_ann}/genes.proteinCoding_lncRNA.genes.bed") : "$projectDir/assets/dummy_file.txt",
             true
         )
+        ch_software_versions = ch_software_versions.mix(SUMMARY_PLOTS.out.versions)
     }
 
     if (params.run_local_peak_qc && params.run_summary_plots & params.run_combine_igg){
@@ -809,6 +796,7 @@ workflow CUTANDRUN {
             params.local_assets ? file("${params.local_assets}/${params.genome_ann}/genes.proteinCoding_lncRNA.genes.bed") : "$projectDir/assets/dummy_file.txt",
             false
         )
+        ch_software_versions = ch_software_versions.mix(SUMMARY_PLOTS_COMB_IGG.out.versions)
     }
 }
 

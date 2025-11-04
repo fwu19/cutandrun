@@ -19,12 +19,18 @@ process GENERATE_REPORT_PROCESS_CONTROLS {
 
     output:
     path( "*.{rds,html,Rmd}" ), optional: true
+    path ( 'versions.yml' ), emit: versions
 
     script:
     """
     prepare_report_process_controls.r
     mv report/*.Rmd .
     render_report.r *.Rmd
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        R: \$(R --version | head -n 1)
+    END_VERSIONS
 
     """
 }

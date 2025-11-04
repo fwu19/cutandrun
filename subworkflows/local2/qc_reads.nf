@@ -14,6 +14,8 @@ workflow QC_READS {
     main:
     ch_read_metrics = Channel.empty()
     ch_frag_lens = Channel.empty()
+    ch_versions = Channel.empty()
+
     /*
     * Collect reads metrics from MultiQC data
     */
@@ -22,6 +24,7 @@ workflow QC_READS {
         ch_multiqc_data
     )
     ch_read_metrics = READ_METRICS.out.csv
+    ch_versions = ch_versions.mix(READ_METRICS.out.versions)
     //ch_read_metrics.view()
     // path(csv)
 
@@ -33,6 +36,7 @@ workflow QC_READS {
         ch_samtools_bam
     )
     ch_frag_lens = FRAGMENT_LENGTHS.out.txt
+    ch_versions = ch_versions.mix(FRAGMENT_LENGTHS.out.versions)
     // ch_frag_lens.view()
     // [ meta, path(txt) ]
 
@@ -41,5 +45,6 @@ workflow QC_READS {
 
     read_metrics = ch_read_metrics
     frag_lens = ch_frag_lens
+    versions = ch_versions
 
 }

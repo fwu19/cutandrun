@@ -12,6 +12,7 @@ process TORNADO_PLOTS {
     output:
     path( "*.pdf" ), optional: true
     path( "*.bed" ), optional: true
+    path ( 'versions.yml' ), emit: versions
 
     when:
     task.ext.when == null || task.ext.when
@@ -22,5 +23,11 @@ process TORNADO_PLOTS {
     """
     tornado_plots.r target=$target $args
     cp gene/*.bed .
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        R: \$(R --version | head -n 1)
+    END_VERSIONS
+
     """
 }

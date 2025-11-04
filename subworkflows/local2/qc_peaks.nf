@@ -29,6 +29,7 @@ workflow QC_PEAKS {
         ch_conp_bed = Channel.empty()
         ch_conp_csv = Channel.empty()
         ch_conp_ann = Channel.empty()
+        ch_versions = Channel.empty()
 
         /*
         * Compute reads in peak
@@ -121,4 +122,5 @@ workflow QC_PEAKS {
     conp_bed = ch_conp_bed
     conp_csv = ch_conp_csv
     conp_ann = ch_conp_ann
+    versions = ch_versions
 }

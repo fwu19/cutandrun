@@ -279,5 +279,6 @@ workflow CALL_PEAKS_PROCESS_CONTROLS {
     versions = ch_versions
     peaks_all = ch_peaks_all
     peaks_final = ch_peaks_final
+    versions = ch_versions
 
 }

@@ -19,7 +19,7 @@ workflow SUMMARY_PLOTS {
     main:
     ch_versions = Channel.empty()
     ch_avg_bigwig = Channel.empty()
-
+    ch_versions = Channel.empty()
 
     /*
     * Convert markdup.bam files to markdup.CPM.bigwig for genome browser
@@ -31,6 +31,7 @@ workflow SUMMARY_PLOTS {
             .map { it -> [ [ it[0].sample_group, it[0].target ], it[1] ] }
             .groupTuple()
     )
+    ch_versions = ch_versions.mix(BIGWIG_AVERAGE.out.versions)
 
     if (average_igg){
         BIGWIG_AVERAGE_IGG(
@@ -40,9 +41,9 @@ workflow SUMMARY_PLOTS {
             .groupTuple()
         // [[sample_group, target], Bigwig1, Bigwig2, ...]
         )
+        ch_versions = ch_versions.mix(BIGWIG_AVERAGE_IGG.out.versions)
     }
 
-    ch_versions = BIGWIG_AVERAGE.out.versions
     ch_avg_bigwig = BIGWIG_AVERAGE.out.bigwig
     // EXAMPLE CHANNEL STRUCT: [[META], BAM, BAI]
     //ch_bedgraph_dedup | view
@@ -55,6 +56,7 @@ workflow SUMMARY_PLOTS {
         ch_conp_ann,
         ch_dp
     )
+    ch_versions = ch_versions.mix(UPDATE_PEAKS.out.versions)
 
     /*
     * tornado plots for each antibody
@@ -70,6 +72,7 @@ workflow SUMMARY_PLOTS {
         gene_bed
         // [ val(target), [bigwig], [conp_bed] ]
     )
+    ch_versions = ch_versions.mix(TORNADO_PLOTS.out.versions)
 
 
     emit:

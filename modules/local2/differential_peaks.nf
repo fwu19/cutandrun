@@ -11,6 +11,7 @@ process DIFFERENTIAL_PEAKS {
 
     output:
     path ( "*.rds" ), emit: data, optional:true
+    path ('versions.yml'), emit: versions
     path ( "*" ), optional:true
 
     script:
@@ -18,8 +19,12 @@ process DIFFERENTIAL_PEAKS {
     """
     differential_peaks.r ss_csv=$samplesheet cmp_file=$comparison tgt=$target $args
     rm -r $samplesheet $comparison counts/ conp/
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        R: \$(R --version | head -n 1)
+    END_VERSIONS
+
     """
 
-    // input files:
-    // rm -r $samplesheet $comparison counts/ conp/
 }

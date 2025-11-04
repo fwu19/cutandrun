@@ -13,9 +13,16 @@ process FRAGMENT_LENGTHS {
 
     output:
     tuple val (meta), path("*.fragment_lengths.txt"), emit: txt
+    path ( "versions.yml" ), emit: versions
 
     script:
     """
     fragment_lengths.sh ${meta.id} $bam
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(samtools --version | sed -e "s/samtools //g")
+    END_VERSIONS
+
     """
 }

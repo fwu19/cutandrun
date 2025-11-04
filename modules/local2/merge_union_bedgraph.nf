@@ -16,13 +16,18 @@ process MERGE_UNION_BEDGRAPH {
 
     output:
     tuple val(id), path("${id}*.bedGraph"), emit: bedgraph
-    path("${id}*.bedGraph")
+    path( "versions.yml" ), emit: versions
 
     script:
     def args = task.ext.args ?: ""
     def suffix = task.ext.suffix ?: ""
     """
     merge_union_bedgraph.r $ubdg ${id}${suffix}.bedGraph
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        R: \$(R --version | head -n 1)
+    END_VERSIONS
 
     """
 }

@@ -16,7 +16,7 @@ nextflow.enable.dsl = 2
     GENOME PARAMETER VALUES
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-
+params.workflow     = WorkflowMain.getGenomeAttribute(params, 'workflow')
 params.fasta     = WorkflowMain.getGenomeAttribute(params, 'fasta')
 params.bowtie2   = WorkflowMain.getGenomeAttribute(params, 'bowtie2')
 params.gtf       = WorkflowMain.getGenomeAttribute(params, 'gtf')

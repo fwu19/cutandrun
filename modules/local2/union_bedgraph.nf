@@ -19,12 +19,18 @@ process UNION_BEDGRAPH {
 
     output:
     tuple val(id), path("${id}*.unionbdg"), emit: bedgraph
+    path ( "versions.yml" ), emit: versions
 
     script:
     def args = task.ext.args ?: ""
     def suffix = task.ext.suffix ?: ""
     """
     bedtools unionbedg $args -i input/* >${id}${suffix}.unionbdg
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bedtools: \$(bedtools --version | sed -e "s/bedtools //g")
+    END_VERSIONS
 
     """
 }

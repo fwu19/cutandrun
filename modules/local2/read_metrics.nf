@@ -11,12 +11,17 @@ process READ_METRICS {
 
     output:
     path( "*.csv" ), emit: csv
-    // read_metrics.csv
+    path ('versions.yml'), emit: versions
 
     script:
     """
     read_metrics.r
 
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        R: \$(R --version | head -n 1)
+    END_VERSIONS
+
     """
-    // input: multiqc_data/
+    
 }

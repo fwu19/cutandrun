@@ -11,13 +11,17 @@ process ORIGINAL_PEAK_WIDTHS {
 
     output:
     tuple val(meta), path( "*.csv" ), emit: csv
+    path ('versions.yml'), emit: versions
 
     script:
     """
     original_peak_widths.r ${meta.id}
 
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        R: \$(R --version | head -n 1)
+    END_VERSIONS
+
     """
 
-    // input files: read_metrics.csv fragment_length.rds peaks/*.narrowPeak peaks/*.broadPeak peak/*.bed rip/*.reads_in_peak.csv
-    // output files: [id].original_peaks.csv, [id].original_peak_width.rds
 }

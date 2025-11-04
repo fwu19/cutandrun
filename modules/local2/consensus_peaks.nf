@@ -13,12 +13,17 @@ process CONSENSUS_PEAKS {
     tuple val(target), path ( "*.csv" ), emit: csv
     tuple val(target), path ( "*.rds" ), emit: rds
     tuple val(target), path ( "*.bed" ), emit: bed
+    path ('versions.yml'), emit: versions
 
     script:
     """
     consensus_peaks.r $samplesheet $target
 
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        featureCounts: \$( featureCounts -v | sed -e "s/featureCounts //g" )
+    END_VERSIONS
+
     """
 
-    // input files: replicated_peaks.rds replicated_peak_metrics.csv
 }

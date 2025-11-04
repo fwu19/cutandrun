@@ -22,6 +22,7 @@ workflow QC_PROCESS_CONTROLS {
         ch_rip = Channel.empty()
         ch_rep_bed = Channel.empty()
         ch_rep_csv = Channel.empty()
+        ch_versions = Channel.empty()
 
         /*
         * Compute reads in peak
@@ -34,6 +35,7 @@ workflow QC_PROCESS_CONTROLS {
             ch_peak_bam
         )
         ch_rip = READS_IN_PEAK.out.csv
+        ch_versions = ch_versions.mix(READS_IN_PEAK.out.versions)
         // ch_rip.view()
 
 
@@ -44,6 +46,7 @@ workflow QC_PROCESS_CONTROLS {
             ch_peaks_all
         )
         ch_orig_csv = ORIGINAL_PEAKS.out.csv
+        ch_versions = ch_versions.mix(ORIGINAL_PEAKS.out.versions)
         // ch_orig_peaks.view()
         // path(peak_metrics)
 
@@ -55,6 +58,7 @@ workflow QC_PROCESS_CONTROLS {
             ch_peaks_final
         )
         ch_orig_widths = ORIGINAL_PEAK_WIDTHS.out.csv
+        ch_versions = ch_versions.mix(ORIGINAL_PEAK_WIDTHS.out.versions)
         // ch_orig_widths.view()
         // path(peak_widths)
 
@@ -66,6 +70,7 @@ workflow QC_PROCESS_CONTROLS {
                     .combine(ch_hiconf_peaks)
         )
         ch_rep_csv = RECALL_REFERENCE_PEAKS.out.csv
+        ch_versions = ch_versions.mix(RECALL_REFERENCE_PEAKS.out.versions)
         //ch_rep_bed.view()
         // [ target, [peaks] ]
 
@@ -75,5 +80,6 @@ workflow QC_PROCESS_CONTROLS {
     orig_csv = ch_orig_csv
     orig_widths = ch_orig_widths
     rep_csv = ch_rep_csv
+    versions = ch_versions
 
 }

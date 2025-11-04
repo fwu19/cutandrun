@@ -10,12 +10,17 @@ process READS_IN_CONSENSUS_PEAKS {
 
     output:
     tuple val(meta.target), path ( "*.txt" ), emit: count
+    path ('versions.yml'), emit: versions
     path ( "*.fragmentCounts.*" )
 
     script:
     """
     featureCounts.sh ${meta.id} $bam
 
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        featureCounts: \$( featureCounts -v | sed -e "s/featureCounts //g" )
+    END_VERSIONS
     """
 
 }

@@ -22,6 +22,7 @@ process GENERATE_REPORT {
 
     output:
     tuple path( "*.{rds,html,Rmd}" )
+    path ( 'versions.yml' ), emit: versions
 
     script:
     def args = task.ext.args ?: ''
@@ -30,5 +31,11 @@ process GENERATE_REPORT {
     prepare_report.r
     mv report.Rmd 00_analysis_report${suffix}.Rmd
     render_report.r 00_analysis_report${suffix}.Rmd
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        R: \$(R --version | head -n 1)
+    END_VERSIONS
+
     """
 }

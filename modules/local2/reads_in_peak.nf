@@ -10,9 +10,17 @@ process READS_IN_PEAK {
 
     output:
     tuple val( meta ), path( "*.reads_in_peak.csv" ), emit: csv
+    path ( "versions.yml" ), emit: versions
 
     script:
     """
     reads_in_peak.sh ${meta.id} $bam
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(samtools --version | head -n 1 | sed -e "s/samtools //g")
+        bedtools: \$(bedtools --version | head -n 1 | sed -e "s/bedtools //g")
+    END_VERSIONS
+
     """
 }

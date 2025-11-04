@@ -15,12 +15,17 @@ process REPLICATED_PEAKS {
     tuple val(target), path ( "*.csv" ), emit: csv, optional: true
     tuple val(target), path ( "*.rds" ), emit: rds, optional: true
     tuple val(target), path ( "{multiple_replicates,single_replicate}/*.bed" ), emit: bed, optional: true
+    path ( "versions.yml" ), emit: versions
 
     script:
     """
     replicated_peaks.r $group $min_reps
 
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        R: \$(R --version | head -n 1)
+    END_VERSIONS
+
     """
 
-    // input files: original_peaks.rds original_peak_metrics.csv
 }

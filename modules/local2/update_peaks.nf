@@ -13,10 +13,16 @@ process UPDATE_PEAKS {
 
     output:
     path ( "*.bed" )
+    path ('versions.yml'), emit: versions
 
     script:
     """
     update_peaks.r
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        R: \$(R --version | head -n 1)
+    END_VERSIONS
 
     """
 
