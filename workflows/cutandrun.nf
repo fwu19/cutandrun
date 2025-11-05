@@ -82,7 +82,7 @@ def prepare_tool_indices = ["bowtie2"]
 
 // Check peak caller params
 def caller_list = ['seacr', 'macs2']
-callers = params.peakcaller ? params.peakcaller.split(',').collect{ it.trim().toLowerCase() } : ['macs2']
+callers = params.peakcaller ? params.peakcaller.split(',').collect{ it.trim().toLowerCase() } : ['macs2', 'seacr']
 if ((caller_list + callers).unique().size() != caller_list.size()) {
     exit 1, "Invalid variant calller option: ${params.peakcaller}. Valid options: ${caller_list.join(', ')}"
 }
@@ -432,7 +432,7 @@ workflow CUTANDRUN {
     ch_bigwig_markdup       = Channel.empty()
     ch_bigwig_dedup         = Channel.empty()
 
-    if(params.run_alignment && params.run_read_filter) {
+    if(params.run_mark_dups && params.run_remove_dups) {
         COMPUTE_GENOMECOVERAGE(
             ch_samtools_bam_markdup,
             ch_samtools_bai_markdup,
@@ -515,7 +515,7 @@ workflow CUTANDRUN {
         ch_software_versions = ch_software_versions.mix(CALL_PEAKS_PROCESS_CONTROLS.out.versions)
     }
 
-    if (params.run_local_read_qc){
+    if (params.run_read_qc){
         QC_READS(
             ch_multiqc_data,
             ch_samtools_bam
@@ -526,7 +526,7 @@ workflow CUTANDRUN {
     /*
     * QC peaks
     */
-    if (params.run_local_peak_qc && params.workflow == "cutandrun" && !params.skip_individual_igg){
+    if (params.run_peak_qc && params.workflow == "cutandrun" && !params.skip_individual_igg){
         CALL_MACS2_PEAKS.out.narrow_filtered
             .concat(
                 CALL_MACS2_PEAKS.out.narrow_igg,
@@ -574,7 +574,7 @@ workflow CUTANDRUN {
     /*
     * QC peaks with combined IgG
     */
-    if (params.run_local_peak_qc && params.workflow == "cutandrun" && params.run_combine_igg){
+    if (params.run_peak_qc && params.workflow == "cutandrun" && params.run_combine_igg){
         CALL_MACS2_PEAKS.out.narrow_comb_igg_filtered
             .concat(
                 CALL_MACS2_PEAKS.out.narrow_comb_igg,
@@ -622,7 +622,7 @@ workflow CUTANDRUN {
     /*
     * QC peaks for process controls
     */
-    if (params.run_local_peak_qc && params.workflow == "process_controls"){
+    if (params.run_peak_qc && params.workflow == "process_controls"){
         ch_ref_peaks = params.ref_peaks ? Channel.fromPath("${params.ref_peaks}", type: "dir", checkIfExists: true) : Channel.empty()
         QC_PROCESS_CONTROLS(
             samplesheet,
@@ -639,7 +639,7 @@ workflow CUTANDRUN {
     * Call differential peaks
     */
     ch_dp = Channel.empty()
-    if (params.run_local_dp & !params.skip_individual_igg){
+    if (params.run_differential_peaks & !params.skip_individual_igg){
         // Count reads in consensus peaks
         READS_IN_CONSENSUS_PEAKS(
             QC_PEAKS.out.conp_bed
@@ -671,7 +671,7 @@ workflow CUTANDRUN {
     * Call differential peaks with combined IgG
     */
     ch_dp_comb_igg = Channel.empty()
-    if (params.run_local_dp & params.run_combine_igg){
+    if (params.run_differential_peaks & params.run_combine_igg){
         // Count reads in consensus peaks
         READS_IN_CONSENSUS_PEAKS_COMB_IGG(
             QC_PEAKS_COMB_IGG.out.conp_bed
@@ -682,7 +682,7 @@ workflow CUTANDRUN {
                 )
                 .map { it -> [ it[1][1][0], it[1][1][1], it[0][1] ] }
         )
-    ch_software_versions = ch_software_versions.mix(QC_PEAKS_COMB_IGG.out.versions)
+        ch_software_versions = ch_software_versions.mix(QC_PEAKS_COMB_IGG.out.versions)
 
         // if --comparison is a dummy file or empty file is used, throw a warning and continue.
         // if file has contents but not a correct format, throw an error.
@@ -702,7 +702,7 @@ workflow CUTANDRUN {
     /*
     * Generate report for experimental data
     */
-    if (params.run_local_report & params.workflow == "cutandrun" & !params.skip_individual_igg){
+    if (params.run_reporting & params.workflow == "cutandrun" & !params.skip_individual_igg){
             /*
             * Make plots for report
             */
@@ -728,7 +728,7 @@ workflow CUTANDRUN {
     /*
     * Generate report for experimental data with combined IgG
     */
-    if (params.run_local_report & params.workflow == "cutandrun" & params.run_combine_igg){
+    if (params.run_reporting & params.workflow == "cutandrun" & params.run_combine_igg){
             /*
             * Make plots for report
             */
@@ -755,7 +755,7 @@ workflow CUTANDRUN {
     /*
     * Generate report for process controls
     */
-    if (params.run_local_report & params.workflow == "process_controls"){
+    if (params.run_reporting & params.workflow == "process_controls"){
 
             GENERATE_REPORT_PROCESS_CONTROLS(
                 samplesheet,
@@ -775,7 +775,7 @@ workflow CUTANDRUN {
     /*
     * make plots, e.g. heatmaps
     */
-    if (params.run_local_peak_qc && params.run_summary_plots & !params.skip_individual_igg){
+    if (params.run_peak_qc && params.run_summary_plots & !params.skip_individual_igg){
         SUMMARY_PLOTS(
             ch_bigwig_markdup,
             QC_PEAKS.out.conp_bed.ifEmpty([]),
@@ -787,7 +787,7 @@ workflow CUTANDRUN {
         ch_software_versions = ch_software_versions.mix(SUMMARY_PLOTS.out.versions)
     }
 
-    if (params.run_local_peak_qc && params.run_summary_plots & params.run_combine_igg){
+    if (params.run_peak_qc && params.run_summary_plots & params.run_combine_igg){
         SUMMARY_PLOTS_COMB_IGG(
             ch_bigwig_markdup,
             QC_PEAKS_COMB_IGG.out.conp_bed.ifEmpty([]),
