@@ -562,7 +562,7 @@ workflow CUTANDRUN {
             samplesheet,
             params.min_replicates,
             params.genome_ann,
-            params.local_assets ? file("${params.local_assets}/${params.genome_ann}/genes.proteinCoding_lncRNA.gtf") : ch_dummy_file,
+            params.gtf ? file(params.gtf, checkIfExists: true) : ch_dummy_file,
             ch_samtools_bam,
             ch_peaks_all,
             ch_peaks_final
@@ -610,7 +610,7 @@ workflow CUTANDRUN {
             samplesheet_combine_igg,
             params.min_replicates,
             params.genome_ann,
-            params.local_assets ? file("${params.local_assets}/${params.genome_ann}/genes.proteinCoding_lncRNA.gtf") : ch_dummy_file,
+            params.gtf ? file(params.gtf, checkIfExists: true) : ch_dummy_file,
             ch_samtools_bam,
             ch_peaks_comb_igg_all,
             ch_peaks_comb_igg_final
@@ -639,7 +639,7 @@ workflow CUTANDRUN {
     * Call differential peaks
     */
     ch_dp = Channel.empty()
-    if (params.run_differential_peaks & !params.skip_individual_igg){
+    if (params.run_peak_qc && params.run_differential_peaks & !params.skip_individual_igg){
         // Count reads in consensus peaks
         READS_IN_CONSENSUS_PEAKS(
             QC_PEAKS.out.conp_bed
@@ -671,7 +671,7 @@ workflow CUTANDRUN {
     * Call differential peaks with combined IgG
     */
     ch_dp_comb_igg = Channel.empty()
-    if (params.run_differential_peaks & params.run_combine_igg){
+    if (params.run_peak_qc && params.run_differential_peaks & params.run_combine_igg){
         // Count reads in consensus peaks
         READS_IN_CONSENSUS_PEAKS_COMB_IGG(
             QC_PEAKS_COMB_IGG.out.conp_bed
@@ -719,7 +719,7 @@ workflow CUTANDRUN {
                 QC_PEAKS.out.conp_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
                 QC_PEAKS.out.conp_ann.collect{it[1]}.ifEmpty([]),
                 DIFFERENTIAL_PEAKS.out.data.flatten().collect().ifEmpty([]),
-                params.local_assets ? Channel.fromPath("${params.local_assets}/report/", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
+                params.report_dir ? Channel.fromPath("${params.report_dir}", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
             )
             ch_software_versions = ch_software_versions.mix(GENERATE_REPORT.out.versions)
 
@@ -745,7 +745,7 @@ workflow CUTANDRUN {
                 QC_PEAKS_COMB_IGG.out.conp_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
                 QC_PEAKS_COMB_IGG.out.conp_ann.collect{it[1]}.ifEmpty([]),
                 DIFFERENTIAL_PEAKS_COMB_IGG.out.data.flatten().collect().ifEmpty([]),
-                params.local_assets ? Channel.fromPath("${params.local_assets}/report/", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
+                params.report_dir ? Channel.fromPath("${params.report_dir}", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
             )
             ch_software_versions = ch_software_versions.mix(GENERATE_REPORT_COMB_IGG.out.versions)
 
@@ -781,7 +781,7 @@ workflow CUTANDRUN {
             QC_PEAKS.out.conp_bed.ifEmpty([]),
             QC_PEAKS.out.conp_ann.collect{it[1]}.ifEmpty([]),
             ch_dp.collect().ifEmpty([]),
-            params.local_assets ? file("${params.local_assets}/${params.genome_ann}/genes.proteinCoding_lncRNA.genes.bed") : "$projectDir/assets/dummy_file.txt",
+            params.gene_bed ? file(params.gene_bed, checkIfExists: true) : "$projectDir/assets/dummy_file.txt",
             true
         )
         ch_software_versions = ch_software_versions.mix(SUMMARY_PLOTS.out.versions)
@@ -793,7 +793,7 @@ workflow CUTANDRUN {
             QC_PEAKS_COMB_IGG.out.conp_bed.ifEmpty([]),
             QC_PEAKS_COMB_IGG.out.conp_ann.collect{it[1]}.ifEmpty([]),
             ch_dp_comb_igg.collect().ifEmpty([]),
-            params.local_assets ? file("${params.local_assets}/${params.genome_ann}/genes.proteinCoding_lncRNA.genes.bed") : "$projectDir/assets/dummy_file.txt",
+            params.gene_bed ? file(params.gene_bed, checkIfExists: true) : "$projectDir/assets/dummy_file.txt",
             false
         )
         ch_software_versions = ch_software_versions.mix(SUMMARY_PLOTS_COMB_IGG.out.versions)
