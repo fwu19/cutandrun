@@ -639,7 +639,7 @@ workflow CUTANDRUN {
     * Call differential peaks
     */
     ch_dp = Channel.empty()
-    if (params.run_peak_qc && params.run_differential_peaks & !params.skip_individual_igg){
+    if (params.run_peak_qc && params.run_differential_peaks && !params.skip_individual_igg){
         // Count reads in consensus peaks
         READS_IN_CONSENSUS_PEAKS(
             QC_PEAKS.out.conp_bed
@@ -671,7 +671,7 @@ workflow CUTANDRUN {
     * Call differential peaks with combined IgG
     */
     ch_dp_comb_igg = Channel.empty()
-    if (params.run_peak_qc && params.run_differential_peaks & params.run_combine_igg){
+    if (params.run_peak_qc && params.run_differential_peaks && params.run_combine_igg){
         // Count reads in consensus peaks
         READS_IN_CONSENSUS_PEAKS_COMB_IGG(
             QC_PEAKS_COMB_IGG.out.conp_bed
@@ -702,7 +702,7 @@ workflow CUTANDRUN {
     /*
     * Generate report for experimental data
     */
-    if (params.run_reporting & params.workflow == "cutandrun" & !params.skip_individual_igg){
+    if (params.run_reporting && params.workflow == "cutandrun" && !params.skip_individual_igg){
             /*
             * Make plots for report
             */
@@ -728,7 +728,7 @@ workflow CUTANDRUN {
     /*
     * Generate report for experimental data with combined IgG
     */
-    if (params.run_reporting & params.workflow == "cutandrun" & params.run_combine_igg){
+    if (params.run_reporting && params.workflow == "cutandrun" && params.run_combine_igg){
             /*
             * Make plots for report
             */
@@ -755,7 +755,7 @@ workflow CUTANDRUN {
     /*
     * Generate report for process controls
     */
-    if (params.run_reporting & params.workflow == "process_controls"){
+    if (params.run_reporting && params.workflow == "process_controls"){
 
             GENERATE_REPORT_PROCESS_CONTROLS(
                 samplesheet,
@@ -775,25 +775,27 @@ workflow CUTANDRUN {
     /*
     * make plots, e.g. heatmaps
     */
-    if (params.run_peak_qc && params.run_summary_plots & !params.skip_individual_igg){
+    if (params.run_peak_qc && params.run_summary_plots && !params.skip_individual_igg){
         SUMMARY_PLOTS(
             ch_bigwig_markdup,
             QC_PEAKS.out.conp_bed.ifEmpty([]),
             QC_PEAKS.out.conp_ann.collect{it[1]}.ifEmpty([]),
             ch_dp.collect().ifEmpty([]),
+            params.gtf ? file(params.gtf, checkIfExists: true) : ch_dummy_file,
             params.gene_bed ? file(params.gene_bed, checkIfExists: true) : "$projectDir/assets/dummy_file.txt",
             true
         )
         ch_software_versions = ch_software_versions.mix(SUMMARY_PLOTS.out.versions)
     }
 
-    if (params.run_peak_qc && params.run_summary_plots & params.run_combine_igg){
+    if (params.run_peak_qc && params.run_summary_plots && params.run_combine_igg){
         SUMMARY_PLOTS_COMB_IGG(
             ch_bigwig_markdup,
             QC_PEAKS_COMB_IGG.out.conp_bed.ifEmpty([]),
             QC_PEAKS_COMB_IGG.out.conp_ann.collect{it[1]}.ifEmpty([]),
             ch_dp_comb_igg.collect().ifEmpty([]),
-            params.gene_bed ? file(params.gene_bed, checkIfExists: true) : "$projectDir/assets/dummy_file.txt",
+            params.gtf ? file(params.gtf, checkIfExists: true) : ch_dummy_file,
+            params.gene_bed ? file(params.gene_bed, checkIfExists: true) : ch_dummy_file,
             false
         )
         ch_software_versions = ch_software_versions.mix(SUMMARY_PLOTS_COMB_IGG.out.versions)

@@ -2,8 +2,9 @@
  * Convert bam files to bedgraph and bigwig with apropriate normalisation
  */
 
+include { GTF2GENES                                 } from "../../modules/local2/gtf2genes"
 include { BIGWIG_AVERAGE                            } from "../../modules/local2/bigwig_average"
-include { BIGWIG_AVERAGE as BIGWIG_AVERAGE_IGG } from "../../modules/local2/bigwig_average"
+include { BIGWIG_AVERAGE as BIGWIG_AVERAGE_IGG      } from "../../modules/local2/bigwig_average"
 include { TORNADO_PLOTS                             } from "../../modules/local2/tornado_plots"
 include { UPDATE_PEAKS                              } from "../../modules/local2/update_peaks"
 
@@ -13,6 +14,7 @@ workflow SUMMARY_PLOTS {
     ch_conp_bed
     ch_conp_ann
     ch_dp
+    gene_gtf
     gene_bed
     average_igg
 
@@ -20,6 +22,14 @@ workflow SUMMARY_PLOTS {
     ch_versions = Channel.empty()
     ch_avg_bigwig = Channel.empty()
     ch_versions = Channel.empty()
+
+    /*
+    * convert gtf to gene.bed
+    */
+    if (gene_bed =~ 'dummy'){
+        GTF2GENES(gene_gtf)
+        gene_bed = GTF2GENES.out.bed
+    }
 
     /*
     * Convert markdup.bam files to markdup.CPM.bigwig for genome browser
