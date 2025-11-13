@@ -96,7 +96,7 @@ if ((caller_list + callers).unique().size() != caller_list.size()) {
 /*
  * SUBWORKFLOWS
  */
-include { PREPARE_GENOME                                   } from "../subworkflows/local/prepare_genome"
+include { PREPARE_GENOME                                   } from "../subworkflows/local2/prepare_genome"
 include { FASTQC_TRIMGALORE                                } from "../subworkflows/local/fastqc_trimgalore"
 include { ALIGN_BOWTIE2                                    } from "../subworkflows/local/align_bowtie2"
 include { EXTRACT_METADATA_AWK as EXTRACT_BT2_TARGET_META  } from "../subworkflows/local/extract_metadata_awk"
@@ -139,6 +139,8 @@ include { GET_FASTQ_PATHS                                                    } f
 include { MULTIQC                                                            } from '../modules/local2/multiqc'
 include { READS_IN_CONSENSUS_PEAKS                                           } from '../modules/local2/reads_in_consensus_peaks'
 include { READS_IN_CONSENSUS_PEAKS as READS_IN_CONSENSUS_PEAKS_COMB_IGG      } from '../modules/local2/reads_in_consensus_peaks'
+include { COLLECT_COUNT_MATRIX                                               } from '../modules/local2/collect_count_matrix'
+include { COLLECT_COUNT_MATRIX as COLLECT_COUNT_MATRIX_COMB_IGG              } from '../modules/local2/collect_count_matrix'
 include { DIFFERENTIAL_PEAKS                                                 } from '../modules/local2/differential_peaks'
 include { DIFFERENTIAL_PEAKS as DIFFERENTIAL_PEAKS_COMB_IGG                  } from '../modules/local2/differential_peaks'
 include { GENERATE_REPORT                                                    } from '../modules/local2/generate_report'
@@ -161,6 +163,8 @@ workflow CUTANDRUN {
     /*
      * SUBWORKFLOW: Uncompress and prepare reference genome files
      */
+    if (!params.target_genome){ params.target_genome = params.genome }
+
     if(params.run_genome_prep) {
         PREPARE_GENOME (
             prepare_tool_indices,
@@ -226,7 +230,7 @@ workflow CUTANDRUN {
             )
             samplesheet_combine_igg = IGG_CHECK.out.samplesheet
             meta_combine_igg = IGG_CHECK.out.meta
-            ch_software_versions = ch_software_versions.mix(GROUP_IGG.out.versions)
+            ch_software_versions = ch_software_versions.mix(IGG_CHECK.out.versions)
         }
     }
 
@@ -639,7 +643,7 @@ workflow CUTANDRUN {
     * Call differential peaks
     */
     ch_dp = Channel.empty()
-    if (params.run_peak_qc && params.run_differential_peaks && !params.skip_individual_igg){
+    if (params.run_peak_qc && !params.skip_individual_igg){
         // Count reads in consensus peaks
         READS_IN_CONSENSUS_PEAKS(
             QC_PEAKS.out.conp_bed
@@ -652,26 +656,36 @@ workflow CUTANDRUN {
         )
         ch_software_versions = ch_software_versions.mix(READS_IN_CONSENSUS_PEAKS.out.versions)
 
-        // if --comparison is a dummy file or empty file is used, throw a warning and continue.
-        // if file has contents but not a correct format, throw an error.
-        DIFFERENTIAL_PEAKS(
+        y0_rds = Channel.empty()
+        COLLECT_COUNT_MATRIX(
             READS_IN_CONSENSUS_PEAKS.out.count
                 .groupTuple( by: 0 )
                 .map { it -> [ it[0], it[1].flatten().collect() ]}
                 .cross ( QC_PEAKS.out.conp_bed )
                 .map { it -> [ it[0][0], it[0][1], it[1][1] ]}
                 .combine(samplesheet)
-                .combine(params.comparison ? Channel.fromPath( params.comparison, checkIfExists: true ) : ch_dummy_csv)
         )
-        ch_dp = DIFFERENTIAL_PEAKS.out.data
-        ch_software_versions = ch_software_versions.mix(DIFFERENTIAL_PEAKS.out.versions)
+        y0_rds = COLLECT_COUNT_MATRIX.out.rds
+        ch_software_versions = ch_software_versions.mix(COLLECT_COUNT_MATRIX.out.versions)
+
+        // if --comparison is a dummy file or empty file is used, throw a warning and continue.
+        // if file has contents but not a correct format, throw an error.
+        if ( params.run_differential_peaks ){
+            DIFFERENTIAL_PEAKS(
+                y0_rds
+                .combine(samplesheet)
+                .combine(params.comparison ? Channel.fromPath( params.comparison, checkIfExists: true ) : ch_dummy_csv)
+            )
+            ch_dp = DIFFERENTIAL_PEAKS.out.data
+            ch_software_versions = ch_software_versions.mix(DIFFERENTIAL_PEAKS.out.versions)
+        }
     }
 
     /*
     * Call differential peaks with combined IgG
     */
     ch_dp_comb_igg = Channel.empty()
-    if (params.run_peak_qc && params.run_differential_peaks && params.run_combine_igg){
+    if (params.run_peak_qc && params.run_combine_igg){
         // Count reads in consensus peaks
         READS_IN_CONSENSUS_PEAKS_COMB_IGG(
             QC_PEAKS_COMB_IGG.out.conp_bed
@@ -684,19 +698,29 @@ workflow CUTANDRUN {
         )
         ch_software_versions = ch_software_versions.mix(QC_PEAKS_COMB_IGG.out.versions)
 
-        // if --comparison is a dummy file or empty file is used, throw a warning and continue.
-        // if file has contents but not a correct format, throw an error.
-        DIFFERENTIAL_PEAKS_COMB_IGG(
+        y0_rds_comb_igg = Channel.empty()
+        COLLECT_COUNT_MATRIX_COMB_IGG(
             READS_IN_CONSENSUS_PEAKS_COMB_IGG.out.count
                 .groupTuple( by: 0 )
                 .map { it -> [ it[0], it[1].flatten().collect() ]}
                 .cross ( QC_PEAKS_COMB_IGG.out.conp_bed )
                 .map { it -> [ it[0][0], it[0][1], it[1][1] ]}
                 .combine(samplesheet)
-                .combine(params.comparison ? Channel.fromPath( params.comparison, checkIfExists: true ) : ch_dummy_file)
         )
-        ch_dp_comb_igg = DIFFERENTIAL_PEAKS_COMB_IGG.out.data
-        ch_software_versions = ch_software_versions.mix(DIFFERENTIAL_PEAKS_COMB_IGG.out.versions)
+        y0_rds_comb_igg = COLLECT_COUNT_MATRIX_COMB_IGG.out.rds
+        ch_software_versions = ch_software_versions.mix(COLLECT_COUNT_MATRIX_COMB_IGG.out.versions)
+
+        // if --comparison is a dummy file or empty file is used, throw a warning and continue.
+        // if file has contents but not a correct format, throw an error.
+        if( params.run_differential_peaks){
+            DIFFERENTIAL_PEAKS_COMB_IGG(
+                y0_rds_comb_igg
+                .combine(samplesheet)
+                .combine(params.comparison ? Channel.fromPath( params.comparison, checkIfExists: true ) : ch_dummy_file)
+            )
+            ch_dp_comb_igg = DIFFERENTIAL_PEAKS_COMB_IGG.out.data
+            ch_software_versions = ch_software_versions.mix(DIFFERENTIAL_PEAKS_COMB_IGG.out.versions)
+        }
     }
 
     /*

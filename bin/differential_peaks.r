@@ -7,122 +7,6 @@ library(ggplot2)
 library(patchwork)
 
 ## functions ####
-generate_count_matrix <- function(conp.bed, infiles, ids = NULL){
-
-    conp <- read.delim(conp.bed, header = F, col.names = c('chrom', 'start', 'end', 'conp.id', 'sample.groups', 'npeak')) %>%
-        mutate(length = end - start)
-
-    cts <- do.call(cbind, lapply(
-        infiles, function(fname){
-            df <- read.delim(fname, header = T, comment.char = '#')
-            stopifnot(identical(conp$conp.id, df$Geneid))
-            df[7]
-        }
-    ))
-    if (!is.null(ids)){
-        colnames(cts) <- ids
-    }
-
-    return(cbind(conp, cts))
-}
-
-count2dgelist <- function(counts.tsv=NULL, return.counts = T, pattern2remove="^X|.bam$", counts=NULL, out.dir=NULL, feature.cols=1:7, samples = NULL){
-    options(stringsAsFactors = F)
-    require(edgeR)
-
-    if(is.null(counts)){
-        counts <- read.delim(counts.tsv)
-    }
-    if(!is.null(pattern2remove)){
-        colnames(counts) <- gsub(pattern2remove, '', colnames(counts))
-    }
-
-    y0 <- DGEList(counts=counts[-(feature.cols)], genes=counts[feature.cols], remove.zeros = T, samples = samples)
-    y0 <- calcNormFactors(y0)
-
-    if(is.null(out.dir)){out.dir <- dirname(counts.tsv)}
-    if(!dir.exists(out.dir)){dir.create(out.dir, recursive = T)}
-    # saveRDS(y0, paste(out.dir, 'y0.rds', sep = '/'))
-
-    if(return.counts){
-        write.table(cbind(y0$genes, y0$counts), paste(out.dir, 'rawCounts.txt', sep = '/'), quote = F, row.names = F)
-    }
-    return(y0)
-}
-
-## for all
-pca_log2rpkm <- function(y, out.dir, prefix, var.genes = NULL, color = NULL, plot.title = '', sample.label = T, feature.length = 'gene_length'){
-    options(stringsAsFactors = F)
-    require(ggrepel)
-
-    log2rpkm <- rpkm(y, gene.length = feature.length, normalized.lib.sizes = T, log = T)
-
-    if (!is.null(var.genes)){
-        keep <- rank(-apply(log2rpkm, 1, var)) < var.genes
-        log2rpkm <- log2rpkm[keep,]
-    }
-
-    ## Run PCA
-    pca <- prcomp(t(log2rpkm), center = T, scale = T)
-
-    ## Create outdir if needed
-    if(!dir.exists(out.dir)){dir.create(out.dir,recursive = T)}
-
-    ## Scree plot
-    pca.variance.prop <- (pca$sdev^2)/sum(pca$sdev^2)*100
-
-    pdf(paste(out.dir,'pca.scree.plot.pdf',sep = '/'))
-    barplot(
-        pca.variance.prop[1:50],
-        cex.names = 1,
-        xlab = 'Principal component (PC), 1-50',
-        ylab = 'Proportion of variance (%)',
-        main = 'Scree plot',
-        ylim = c(0,80)
-    )
-
-    points(
-        cumsum(pca.variance.prop)[1:50], col = 'red', type = 'l'
-    )
-    dev.off()
-
-    ## PC1 vs PC2
-    df <- cbind(pca$x[,1:2],data.frame(label=rownames(pca$x)))
-    if(is.null(color)){
-        df$color <- y$samples$group
-    }else{
-        df$color <- color
-    }
-
-    if(length(unique(df$color))>1){
-        p <- ggplot(df,aes(x=PC1,y=PC2,label=label,color=color))
-    }else{
-        p <- ggplot(df,aes(x=PC1,y=PC2,label=label))
-    }
-    p <- p +
-        geom_point(shape = 1)
-
-    if(sample.label){
-        p <- p +
-            geom_text_repel(size = 2.4, color = 'black', position = 'jitter',max.overlaps = 80)
-    }
-
-    p +
-        labs(
-            title = plot.title,
-            color = '',
-            x = paste0('PC1 (',round(pca.variance.prop[1],1),'%)'),
-            y = paste0('PC2 (',round(pca.variance.prop[2],1),'%)')
-        )+
-        theme_bw()
-    ggsave(paste(out.dir,paste(prefix,'PCA.pdf',sep='.'),sep = '/'),width = 6,height = 5)
-
-    ## return data
-    return(pca)
-
-}
-
-## for all
 run_da <- function(
     y0, out.prefix,
     control.group, test.group, group=NULL,
@@ -453,28 +337,12 @@ run_one_comparison <- function(y0, control.group, test.group, out.dir, prefix, p
 
 }
 
-wrapper_one_conp <- function(ss, cmp, tgt, conp.bed, count.txts, fdr, fc, fdr2, fc2){
-    out.dir <- gsub('\\.bed$', '', basename(conp.bed))
+wrapper_one_conp <- function(ss, cmp, tgt, rds, fdr, fc, fdr2, fc2){
+    out.dir <- gsub('\\.y0.rds$', '', basename(rds))
     if(!dir.exists(out.dir)){dir.create(out.dir, recursive = T)}
-
-    ## generate count matrix ####
-    cts <- generate_count_matrix(conp.bed, count.txts, ids = gsub('.*macs2_narrow_peaks.|.*macs2_broad_peaks.|.*seacr_peaks.|.fragmentCounts.txt', '', basename(count.txts)))
-
-    if (nrow(cts) < 10){ return (NULL)} # do not test if less than 10 peaks
     
-    ## create DGElist ####
-    ssi <- ss %>%
-        filter(id %in% colnames(cts)) %>%
-        dplyr::select(id, target, sample_group, sample_replicate) %>%
-        arrange(factor(id, levels = colnames(cts)[8:ncol(cts)]))
-
-    y0 <- count2dgelist(
-        counts = cts,
-        out.dir = out.dir,
-        feature.cols = 1:7,
-        samples = ssi
-    )
-
+    y0 <- readRDS(rds)
+    
     ## run DGE ####
     dp <- mapply(
         run_one_comparison,
@@ -500,7 +368,7 @@ wrapper_one_conp <- function(ss, cmp, tgt, conp.bed, count.txts, fdr, fc, fdr2, 
 
 
 ## read arguments ####
-args <- as.vector(commandArgs(T)) # ss, cmp, path/to/fragmentCounts.txt, path/to/conp.bed
+args <- as.vector(commandArgs(T)) # ss, cmp, path/to/y0.rds
 
 lst <- strsplit(args, split = '=')
 for (x in lst){
@@ -537,14 +405,12 @@ if (exists('fc')){ fc <- as.numeric(fc) }else{ fc <- 1.5 }
 if (exists('fdr2')){ fdr2 <- as.numeric(fdr2) }else{ fdr2 <- 0.01 }
 if (exists('fc2')){ fc2 <- as.numeric(fc2) }else{ fc2 <- 2 }
 
-conp.bed.all <- list.files('conp/', full.names = T)
-count.txts.all <- list.files('counts/', full.names = T)
+rds.files <- list.files('rds/', full.names = T)
 
 ## detect differential peaks ####
 dp.list <- list()
-for (conp.bed in conp.bed.all){
-    count.txts <- grep(gsub('.bed$', '', basename(conp.bed)), count.txts.all, value = T)
-    dp.list[[basename(conp.bed)]] <- wrapper_one_conp(ss, cmp, tgt, conp.bed, count.txts, fdr, fc, fdr2, fc2)
+for (rds in rds.files){
+    dp.list[[gsub('.y0.rds', '', basename(rds))]] <- wrapper_one_conp(ss, cmp, tgt, rds, fdr, fc, fdr2, fc2)
 
 }
 if (length(dp.list) > 0){
