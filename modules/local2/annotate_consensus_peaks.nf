@@ -6,7 +6,7 @@ process ANNOTATE_CONSENSUS_PEAKS {
     tag "Annotate consensus peaks on $conp"
 
     input:
-    val ( genome )
+    path ( fasta )
     path ( gtf )
     path (conp)
 
@@ -18,7 +18,7 @@ process ANNOTATE_CONSENSUS_PEAKS {
     script:
     def gtf = gtf.baseName != 'dummy_file.txt' ? "$gtf" : ''
     """
-    annotate_consensus_peaks.sh $genome $conp $gtf
+    annotate_consensus_peaks.sh $fasta $gtf $conp
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

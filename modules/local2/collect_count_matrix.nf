@@ -10,8 +10,8 @@ process COLLECT_COUNT_MATRIX{
     tuple val(target), path ( "counts/*" ), path ( "conp/*" ), path (samplesheet)
 
     output:
-    tuple val(target), path ( "*.rds" ), emit: rds, optional:true
     path ('versions.yml'), emit: versions
+    tuple val(target), path ( "*.raw_counts.txt" ), emit: cts, optional: true
 
     script:
     def args = task.ext.args ?: ''

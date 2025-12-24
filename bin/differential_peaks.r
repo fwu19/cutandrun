@@ -7,6 +7,28 @@ library(ggplot2)
 library(patchwork)
 
 ## functions ####
+count2dgelist <- function(counts.tsv=NULL, return.counts = F, pattern2remove="^X|.bam$", counts=NULL, out.dir=NULL, feature.cols=1:7, samples = NULL){
+    options(stringsAsFactors = F)
+    require(edgeR)
+    
+    if(is.null(counts)){
+        counts <- read.delim(counts.tsv)
+    }
+    if(!is.null(pattern2remove)){
+        colnames(counts) <- gsub(pattern2remove, '', colnames(counts))
+    }
+    
+    y0 <- DGEList(counts=counts[-(feature.cols)], genes=counts[feature.cols], remove.zeros = T, samples = samples)
+    y0 <- calcNormFactors(y0)
+    
+    if(return.counts){
+        if(is.null(out.dir)){out.dir <- dirname(counts.tsv)}
+        if(!dir.exists(out.dir)){dir.create(out.dir, recursive = T)}
+        write.table(cbind(y0$genes, y0$counts), paste(out.dir, 'rawCounts.txt', sep = '/'), quote = F, row.names = F)
+    }
+    return(y0)
+}
+
 run_da <- function(
     y0, out.prefix,
     control.group, test.group, group=NULL,
@@ -18,10 +40,6 @@ run_da <- function(
     target = NULL
 ){
     require(edgeR)
-
-    ## create output directory ####
-    out.dir <- dirname(out.prefix)
-    if(!dir.exists(out.dir)){dir.create(out.dir, recursive = T)}
 
     ## retrieve and process data ####
     if(!is.null(group)){y0$samples$group <- group}
@@ -54,6 +72,9 @@ run_da <- function(
     )
 
     ## Run DP test ####
+    out.dir <- dirname(out.prefix)
+    if(!dir.exists(out.dir)){dir.create(out.dir, recursive = T)}
+    
     y <- estimateDisp(y, design, robust = T)
 
     pdf(paste(out.dir,'bcv.pdf',sep = '/'),width = 4, height = 4); plotBCV(y); dev.off()
@@ -337,16 +358,29 @@ run_one_comparison <- function(y0, control.group, test.group, out.dir, prefix, p
 
 }
 
-wrapper_one_conp <- function(ss, cmp, tgt, rds, fdr, fc, fdr2, fc2){
-    out.dir <- gsub('\\.y0.rds$', '', basename(rds))
-    if(!dir.exists(out.dir)){dir.create(out.dir, recursive = T)}
+wrapper_one_conp <- function(ss, cmp, tgt, cts.file, out.base, fdr, fc, fdr2, fc2){
     
-    y0 <- readRDS(rds)
+    cts <- read.delim(cts.file)
+    if (nrow(cts) < 10){ return (NULL)} # do not test if less than 10 peaks
+    
+    ## create DGElist ####
+    ssi <- ss %>%
+        filter(id %in% colnames(cts)) %>%
+        dplyr::select(id, target, sample_group, sample_replicate) %>%
+        arrange(factor(id, levels = colnames(cts)[8:ncol(cts)]))
+    
+    y0 <- count2dgelist(
+        counts = cts,
+        feature.cols = 1:7,
+        samples = ssi
+    )
+    saveRDS(y0, paste0(out.base, '.y0.rds'))
+    
     
     ## run DGE ####
     dp <- mapply(
         run_one_comparison,
-        MoreArgs = list(y0 = y0, out.dir = out.dir, fdr = fdr, fc = fc, fdr2 = fdr2, fc2 = fc2, tgt = tgt),
+        MoreArgs = list(y0 = y0, out.dir = out.base, fdr = fdr, fc = fc, fdr2 = fdr2, fc2 = fc2, tgt = tgt),
         cmp$control.group,
         cmp$test.group,
         cmp$out.prefix,
@@ -368,22 +402,28 @@ wrapper_one_conp <- function(ss, cmp, tgt, rds, fdr, fc, fdr2, fc2){
 
 
 ## read arguments ####
-args <- as.vector(commandArgs(T)) # ss, cmp, path/to/y0.rds
+args <- as.vector(commandArgs(T)) # ss, cmp
 
 lst <- strsplit(args, split = '=')
 for (x in lst){
     assign(x[1],x[2])
-} # read arguments: ss, comparison, rds, fdr, fc, fdr2, fc2
+} # read arguments: ss, comparison, cts, fdr, fc, fdr2, fc2
 rm(lst)
 
 ss <- read.csv(ss_csv)
 
 if (grepl('dummy_file', cmp_file)){
-    cat(cmp_file, "is a dummy file! Provide --comparison path/to/comparison_file (a comparison table in csv, txt, tsv or rds format)!")
+    error_message <- paste(cmp_file, "is a dummy file! Provide --comparison path/to/comparison_file (a comparison table in csv, txt, tsv or rds format)!")
+    write.table(
+        error_message, paste0(tgt, '.README.txt'), sep = '\n', quote=F, row.names = F, col.names = F
+    )
     quit()
 }else if (file.size(cmp_file) == 0){
-   cat( cmp_file, "is empty!")
-    quit()
+   error_message <- paste( cmp_file, "is empty!")
+   write.table(
+       error_message, paste0(tgt, '.README.txt'), sep = '\n', quote=F, row.names = F, col.names = F
+   )
+   quit()
 }else if (grepl('.csv$', cmp_file)){
     cmp <- read.csv(cmp_file)
 }else if (grepl('.rds$', cmp_file)){
@@ -405,12 +445,13 @@ if (exists('fc')){ fc <- as.numeric(fc) }else{ fc <- 1.5 }
 if (exists('fdr2')){ fdr2 <- as.numeric(fdr2) }else{ fdr2 <- 0.01 }
 if (exists('fc2')){ fc2 <- as.numeric(fc2) }else{ fc2 <- 2 }
 
-rds.files <- list.files('rds/', full.names = T)
+cts.files <- list.files('counts/', full.names = T)
 
 ## detect differential peaks ####
 dp.list <- list()
-for (rds in rds.files){
-    dp.list[[gsub('.y0.rds', '', basename(rds))]] <- wrapper_one_conp(ss, cmp, tgt, rds, fdr, fc, fdr2, fc2)
+for (cts.file in cts.files){
+    out.base <- gsub('\\.raw_counts.txt$', '', basename(cts.file))
+    dp.list[[out.base]] <- wrapper_one_conp(ss, cmp, tgt, cts.file, out.base, fdr, fc, fdr2, fc2)
 
 }
 if (length(dp.list) > 0){

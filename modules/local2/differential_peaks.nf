@@ -7,17 +7,17 @@ process DIFFERENTIAL_PEAKS {
     tag "Call differential peaks on $target"
 
     input:
-    tuple val(target), path ("rds/*"), path (samplesheet), path (comparison)
+    tuple val(target), path ("counts/*"), path (samplesheet), path (comparison)
 
     output:
-    path ( "*.rds" ), emit: data, optional:true
+    path ( "*.dp.rds" ), emit: data, optional:true
     path ('versions.yml'), emit: versions
-    path ( "*" ), optional:true
+    path ( "*_peaks" ), optional:true
 
     script:
     def args = task.ext.args ?: ''
     """
-    differential_peaks.r ss_csv=$samplesheet cmp_file=$comparison tgt=$target $args
+    differential_peaks.r ss_csv=$samplesheet cmp_file=$comparison tgt=$target fdr=${params.fdr} fc=${params.fc} fdr2=${params.fdr2} fc2=${params.fc2} $args
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

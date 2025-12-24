@@ -17,7 +17,7 @@ add_genomic_locations <- function(bed, ann_dir = 'peak_annotations'){
         relocate(score, strand, .after = 'peak_id')
     
     txt <- file.path(ann_dir, gsub('.bed$', '.annotation.txt', basename(bed)))
-    if (!file.exists(txt)){ return(peaks) }
+    if (!file.exists(txt) | file.size(txt)==0){ return(peaks) }
     ann <- read.delim(txt)
     colnames(ann)[1] <- 'peak_id'
     
@@ -55,21 +55,29 @@ add_differential_peaks <- function(peaks, dp){
 
 ## read arguments ####
 args <- as.vector(commandArgs(T))
-
 beds <- list.files('peaks', full.names = T)
-rds <- list.files('differential_peaks/', full.names = T)
 
-peaks <- lapply(beds, add_genomic_locations, ann_dir = 'peak_annotations')
-names(peaks) <- basename(beds)
-
-if (length(rds) > 0){
-    dp <- c()
-    for (i in rds){
-        dp <- c(dp, readRDS(i))
-    }
-    peaks <- mapply(add_differential_peaks, peaks, dp[names(peaks)], SIMPLIFY = F)
+## add peak annotations ####
+if (dir.exists('peak_annotations')){
+    peaks <- lapply(beds, add_genomic_locations, ann_dir = 'peak_annotations')
+    names(peaks) <- basename(beds)
+}else{
+    peaks <- beds
 }
 
+## add differential peaks ####
+if (dir.exists('differential_peaks')){
+    rds <- list.files('differential_peaks/', full.names = T)
+    if (length(rds) > 0){
+        dp <- c()
+        for (i in rds){
+        dp <- c(dp, readRDS(i))
+        }
+        peaks <- mapply(add_differential_peaks, peaks, dp[names(peaks)], SIMPLIFY = F)
+    }
+}
+
+## write out results ####
 mapply(
     function(pk, out_file){
         pk %>% 

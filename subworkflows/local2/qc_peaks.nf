@@ -13,8 +13,8 @@ workflow QC_PEAKS {
     take:
     samplesheet
     min_replicates
-    genome
-    gtf_ann
+    fasta
+    gtf
     ch_samtools_bam
     ch_peaks_all
     ch_peaks_final
@@ -104,8 +104,8 @@ workflow QC_PEAKS {
         * Annotate consensus peaks
         */
         ANNOTATE_CONSENSUS_PEAKS(
-                genome,
-                gtf_ann,
+                fasta,
+                gtf,
                 ch_conp_bed.collect{it[1]}.flatten()
         )
         ch_conp_ann = ANNOTATE_CONSENSUS_PEAKS.out.txt

@@ -276,17 +276,6 @@ if (dir.exists('consensus_annotation')){
 ## Save results ####
 saveRDS(dat, 'data.rds')
 
-## cat dp.rds ####
-if (dir.exists('differential_peaks')){
-  dp.rds <- list.files('differential_peaks', full.names = T, recursive = T)
-  if (length(dp.rds) > 0){
-    dp <- do.call(c, lapply(
-      dp.rds, readRDS
-    ))
-    dp %>% saveRDS('dp.rds')
-  }
-  
-}
 
 ## prepare report.Rmd ####
 file.copy('report/report.setup.Rmd', 'report.Rmd')
