@@ -12,22 +12,6 @@ def logo = NfcoreTemplate.logo(workflow, params.monochrome_logs)
 def citation = '\n' + WorkflowMain.citation(workflow) + '\n'
 def summary_params = paramsSummaryMap(workflow)
 
-/*
-import groovy.json.JsonOutput
-    def summary_params = paramsSummaryMap(workflow)
-    def jsonStr        = JsonOutput.prettyPrint(JsonOutput.toJson(summary_params))
-
-    def outdir = params.outdir ?: '.'
-    def infoDir = new File("${outdir}/pipeline_info")
-    infoDir.mkdirs()  // ensure directory exists
-
-    new File(infoDir, "params_summary.json").text = jsonStr
-
-    def txtPathFile = new File(infoDir, "params_summary.txt")
-    txtPathFile.text = ""
-    writeParamsSummary(summary_params, txtPathFile.absolutePath)
-*/
-
 // Print parameter summary log to screen
 log.info logo + paramsSummaryLog(workflow) + citation
 
@@ -160,7 +144,6 @@ include { GENERATE_REPORT                                                    } f
 include { GENERATE_REPORT as GENERATE_REPORT_COMB_IGG                        } from '../modules/local2/generate_report'
 include { GENERATE_REPORT_PROCESS_CONTROLS                                   } from '../modules/local2/generate_report_process_controls'
 include { WRITE_CSV as WRITE_CSV_BT2                                         } from '../modules/local2/write_csv'
-include { SAVE_PARAMS                                                        } from '../modules/local2/save_params'
 
 /*
 ========================================================================================
@@ -855,10 +838,6 @@ workflow CUTANDRUN {
     ch_software_versions
         .collectFile(storeDir: "${params.outdir}/pipeline_info", name: 'software_versions.yml', sort: true, newLine: true)
 
-    /*
-    * report params
-    */
-    SAVE_PARAMS(summary_params)
 
 }
 
@@ -867,13 +846,16 @@ workflow CUTANDRUN {
 ////////////////////////////////////////////////////
 /* --              COMPLETION EMAIL            -- */
 ////////////////////////////////////////////////////
-
+import groovy.json.JsonOutput
 workflow.onComplete {
     NfcoreTemplate.email(workflow, params, summary_params, projectDir, log, multiqc_report)
     NfcoreTemplate.summary(workflow, params, log)
     if (params.hook_url) {
         NfcoreTemplate.IM_notification(workflow, params, summary_params, projectDir, log)
     }
+    def jsonStr = JsonOutput.toJson(params)
+    def pretty  = JsonOutput.prettyPrint(jsonStr)
+    file("${params.outdir ?: '.'}/pipeline_info/params.json").text = pretty
 
 }
 
@@ -884,17 +866,6 @@ workflow.onError {
     }
 }
 
-def writeParamsSummary(Map m, String path, int indent = 0) {
-    def file = new File(path)
-    m.each { k, v ->
-        if (v instanceof Map) {
-            file << (" " * indent) + "${k}:\n"
-            writeParamsSummary(v as Map, path, indent + 2)
-        } else {
-            file << (" " * indent) + "${k}: ${v}\n"
-        }
-    }
-}
 
 ////////////////////////////////////////////////////
 /* --                  THE END                 -- */
