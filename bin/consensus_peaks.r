@@ -67,8 +67,9 @@ generate_conp <- function(peak.list){
     conp <- reduce(conp)
     
     ## identify sample_group that contribute to the conp
-    shared.conp <- as.matrix(
-      sapply(peak.list, function(pk){countOverlaps(conp,pk)})
+    shared.conp <- matrix(
+      sapply(peak.list, function(pk){countOverlaps(conp,pk)}), 
+      nrow = length(conp), ncol = length(peak.list)
     )
     colnames(shared.conp) <- gsub('.macs2.*|.seacr.*', '', names(peak.list))
     colnames(shared.conp) <- gsub(paste0('_',tgt), '', colnames(shared.conp))
