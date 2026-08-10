@@ -17,6 +17,7 @@ workflow CALL_SEACR_PEAKS {
     combine_igg
     meta_combine_igg
     skip_individual_igg
+    srcdir
 
     main:
 
@@ -26,37 +27,70 @@ workflow CALL_SEACR_PEAKS {
     ch_seacr_comb_igg           = Channel.empty()
     ch_seacr_comb_igg_filtered  = Channel.empty()
 
-    bedgraph_dedup
-        .filter { it -> it[0].is_control == true }
-        .map { it -> [it[0].control_group, it] }
-        .set { ch_bedgraph_control }
-    // ch_bedgraph_control.view
-    // [ control_group, [ meta, bedgraph ] ]
+    if (!params.run_alignment){
+        Channel.fromPath("${srcdir}/csv/genome_coverage.markdup_bdg.csv")
+            .splitCsv(header: true)
+            .map {row ->
+                row.is_control = row.is_control.toBoolean()
+                def meta_map = row.clone()
+                def column_names = meta_map.keySet().toList()
+                def last_column_name = column_names[-1]
+                def last_column_value = meta_map.remove(last_column_name)
+                def prefixed_value = "${srcdir}/${last_column_value}"
+                return [ meta_map, prefixed_value ]
+            }
+            .set{ bedgraph_markdup }
+
+        Channel.fromPath("${srcdir}/csv/genome_coverage.dedup_bdg.csv")
+            .splitCsv(header: true)
+            .map {row ->
+                row.is_control = row.is_control.toBoolean()
+                def meta_map = row.clone()
+                def column_names = meta_map.keySet().toList()
+                def last_column_name = column_names[-1]
+                def last_column_value = meta_map.remove(last_column_name)
+                def prefixed_value = "${srcdir}/${last_column_value}"
+                return [ meta_map, prefixed_value ]
+            }
+            .set {bedgraph_dedup }
+    }
 
     bedgraph_markdup
         .filter { it -> it[0].is_control == false }
-        .map    { it -> [ it[0].control_group, it ] }
+        .map{
+            it -> [ it[0].control_group, it[0], it[1] ]
+        }
         .set { ch_bedgraph_target }
-    // ch_bedgraph_target.view()
-    // [ control_group, [ meta, bedgraph ] ]
+    //ch_bedgraph_target | view
+
+    bedgraph_dedup
+        .filter { it -> it[0].is_control == true }
+        .map{
+            it -> [ it[0].control_group, it[0], it[1] ]
+        }
+        .set{ ch_bedgraph_control }
+    //ch_bedgraph_control | view
 
     ch_bedgraph_control
         .cross(
             ch_bedgraph_target
                 .filter { it -> it[0] != "" }
         )
-        .map { it -> [ it[1][1][0], it[1][1][1], it[0][1][1] ] }
+        .map { it -> [ it[1][1], it[1][2], it[0][2] ] }
         .set { ch_bedgraph_paired }
-        // EXAMPLE CHANNEL STRUCT: [[TARGET META], TARGET_BEDGRAPH, CONTROL_BEDGRAPH]
+    //println "bedgraph_paired"
+    //ch_bedgraph_paired | view
+    // EXAMPLE CHANNEL STRUCT: [[TARGET META], TARGET_BEDGRAPH, CONTROL_BEDGRAPH]
 
     /*
     * without IgG control
     */
     ch_bedgraph_target
-        .map{ it -> [ it[1][0], it[1][1], [] ] }
+        .map{ it -> [ it[1], it[2], [] ] }
         .set { ch_bedgraph_target_fctrl }
     // EXAMPLE CHANNEL STRUCT: [[META], BED, FAKE_CTRL]
-    // ch_bedgraph_target_fctrl | view
+    //println "bedgraph_target_fctrl"
+    //ch_bedgraph_target_fctrl | view
 
     SEACR_CALLPEAK_NOIGG (
         ch_bedgraph_target_fctrl,
@@ -113,8 +147,8 @@ workflow CALL_SEACR_PEAKS {
         UNION_BEDGRAPH_DEDUP (
             ch_meta_comb_igg
             .join(
-            bedgraph_dedup
-                .map { it -> [ it[0].id, it[1] ] } // [ val(meta.id), path(bedgraph) ]
+                bedgraph_dedup
+                    .map { it -> [ it[0].id, it[1] ] } // [ val(meta.id), path(bedgraph) ]
             )
             .filter { it -> it[1].is_control == true }
             .map { it -> [ it[1].control_group, it[2] ]} // [ val(meta.control_group), path(bedgraph) ]

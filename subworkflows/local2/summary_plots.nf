@@ -11,8 +11,8 @@ include { UPDATE_PEAKS                              } from "../../modules/local2
 workflow SUMMARY_PLOTS {
     take:
     ch_bigwig         // channel: [ val(meta), [ bam ] ]
-    ch_conp_bed
-    ch_conp_ann
+    ch_conp_bed       // [ target, path(conp) ]
+    ch_conp_ann       // [ target, path(conp) ]
     ch_dp
     gene_gtf
     gene_bed
@@ -63,7 +63,7 @@ workflow SUMMARY_PLOTS {
     */
     UPDATE_PEAKS(
         ch_conp_bed.collect{it[1]},
-        ch_conp_ann,
+        ch_conp_ann.collect{it[1]},
         ch_dp
     )
     ch_versions = ch_versions.mix(UPDATE_PEAKS.out.versions)
@@ -78,9 +78,8 @@ workflow SUMMARY_PLOTS {
                     .map { it -> [ it[0][1], it[1] ] }
                     .groupTuple()
             )
-            .map { it -> [ it[1][0], it[1][1], it[0][1] ] },
+            .map { it -> [ it[1][0], it[1][1], it[0][1] ] }, // [ val(target), [bigwig], [conp_bed] ]
         gene_bed
-        // [ val(target), [bigwig], [conp_bed] ]
     )
     ch_versions = ch_versions.mix(TORNADO_PLOTS.out.versions)
 

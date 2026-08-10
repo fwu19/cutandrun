@@ -28,6 +28,7 @@ workflow CALL_MACS2_PEAKS {
     combine_igg
     meta_combine_igg
     skip_individual_igg
+    srcdir
 
 
     main:
@@ -44,12 +45,26 @@ workflow CALL_MACS2_PEAKS {
     ch_broad_comb_igg  = Channel.empty()
     ch_broad_comb_igg_filtered  = Channel.empty()
 
+    if (!params.run_alignment){
+        Channel.fromPath("${srcdir}/csv/map2genome.${params.aligner}.csv")
+            .splitCsv(header: true)
+            .map { row ->
+                row.is_control = row.is_control.toBoolean()
+                def meta_map = row.clone()
+                def column_names = meta_map.keySet().toList()
+                def last_column_name = column_names[-1]
+                def last_column_value = meta_map.remove(last_column_name)
+                def prefixed_value = "${srcdir}/${last_column_value}"
+                return [ meta_map, prefixed_value ]
+            }
+            .set { bam_markdup }
+    }
 
     bam_markdup
-        .map { it -> [ it[0].control_group, it ] }
+        .map { it -> [ it[0].control_group, it[0], it[1] ] }
         .branch {
-            target: it[1][0].is_control == false
-            control: it[1][0].is_control == true
+            target: it[1].is_control == false
+            control: it[1].is_control == true
         }
         .set { ch_bam }
 
@@ -64,7 +79,7 @@ workflow CALL_MACS2_PEAKS {
                 .filter { it -> it[0] != "" }
         )
         .map {
-            row -> [ row[1][1][0], row[1][1][1], row[0][1][1] ]
+            row -> [ row[1][1], row[1][2], row[0][2] ]
         }
         .set { ch_bam_paired }
     //ch_bam_paired | view
@@ -73,7 +88,7 @@ workflow CALL_MACS2_PEAKS {
     /*
     * Call peaks without IgG
     */
-    ch_bam.target.map{ it -> [ it[1][0], it[1][1], [] ] }
+    ch_bam.target.map{ it -> [ it[1], it[2], [] ] }
     .set { ch_bam_target_fctrl }
     //ch_bam_target_fctrl | view
     // EXAMPLE CHANNEL STRUCT: [[META], BAM, FAKE_CTRL]

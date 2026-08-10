@@ -78,7 +78,7 @@ workflow QC_PEAKS {
                     .filter { it[0].call_rep_peak == true }
                     .map { it -> [ [it[0].group, it[0].target], it[1] ]}
                     .groupTuple (by: 0)
-                    .map { it -> [ it[0][0], it[0][1], it[1].flatten().collect() ] },
+                    .map { it -> [ it[0][0], it[0][1], it[1].flatten() ] },
                 min_replicates
         )
         ch_rep_bed = REPLICATED_PEAKS.out.bed
@@ -92,7 +92,7 @@ workflow QC_PEAKS {
         CONSENSUS_PEAKS(
                 ch_rep_bed
                 .groupTuple ( by: 0 )
-                .map { it -> [ it[0], it[1].flatten().collect() ] }
+                .map { it -> [ it[0], it[1].flatten() ] }
                 .combine ( samplesheet )
         )
         ch_conp_bed = CONSENSUS_PEAKS.out.bed
@@ -106,7 +106,7 @@ workflow QC_PEAKS {
         ANNOTATE_CONSENSUS_PEAKS(
                 fasta,
                 gtf,
-                ch_conp_bed.collect{it[1]}.flatten()
+                ch_conp_bed.map{it[1]}.flatten()
         )
         ch_conp_ann = ANNOTATE_CONSENSUS_PEAKS.out.txt
         // ch_conp_ann.view()
