@@ -1,4 +1,4 @@
-process GENERATE_REPORT {
+process MAKE_REPORT {
     //module = ['fhR/4.1.2-foss-2021b']
     container "docker://fwu19/r-libs:4.1.2"
 
@@ -29,9 +29,9 @@ process GENERATE_REPORT {
     def args = task.ext.args ?: ''
     def suffix = task.ext.suffix ?: ""
     """
-    prepare_report.r
+    cat_rmd.r
     mv report.Rmd 00_analysis_report${suffix}.Rmd
-    render_report.r 00_analysis_report${suffix}.Rmd
+    render_rmd.r 00_analysis_report${suffix}.Rmd
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

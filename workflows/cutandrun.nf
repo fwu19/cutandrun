@@ -134,7 +134,8 @@ include { CALL_DIFFERENTIAL_PEAKS                                            } f
 include { CALL_DIFFERENTIAL_PEAKS as CALL_DIFFERENTIAL_PEAKS_COMB_IGG        } from '../subworkflows/local2/call_differential_peaks'
 include { SUMMARY_PLOTS                                                      } from '../subworkflows/local2/summary_plots'
 include { SUMMARY_PLOTS as SUMMARY_PLOTS_COMB_IGG                            } from '../subworkflows/local2/summary_plots'
-//include { WRITE_PARAMS                                                      } from '../subworkflows/local2/write_params'
+include { GENERATE_REPORT                                                    } from '../subworkflows/local2/generate_report'
+include { GENERATE_REPORT as GENERATE_REPORT_COMB_IGG                        } from '../subworkflows/local2/generate_report'
 
 include { GET_FASTQ_PATHS                                                    } from '../modules/local2/get_fastq_paths'
 include { MULTIQC                                                            } from '../modules/local2/multiqc'
@@ -144,8 +145,6 @@ include { COLLECT_COUNT_MATRIX                                               } f
 include { COLLECT_COUNT_MATRIX as COLLECT_COUNT_MATRIX_COMB_IGG              } from '../modules/local2/collect_count_matrix'
 include { DIFFERENTIAL_PEAKS                                                 } from '../modules/local2/differential_peaks'
 include { DIFFERENTIAL_PEAKS as DIFFERENTIAL_PEAKS_COMB_IGG                  } from '../modules/local2/differential_peaks'
-include { GENERATE_REPORT                                                    } from '../modules/local2/generate_report'
-include { GENERATE_REPORT as GENERATE_REPORT_COMB_IGG                        } from '../modules/local2/generate_report'
 include { GENERATE_REPORT_PROCESS_CONTROLS                                   } from '../modules/local2/generate_report_process_controls'
 
 /*
@@ -618,17 +617,18 @@ workflow CUTANDRUN {
 
             GENERATE_REPORT(
                 samplesheet,
-                QC_READS.out.read_metrics.ifEmpty([]),
-                QC_READS.out.frag_lens.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS.out.orig_csv.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS.out.orig_widths.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS.out.rip.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS.out.rep_csv.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS.out.conp_csv.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS.out.conp_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
-                QC_PEAKS.out.conp_ann.collect{it[1]}.ifEmpty([]),
-                ch_dp.flatten().collect().ifEmpty([]),
-                params.report_dir ? Channel.fromPath("${params.report_dir}", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
+                QC_READS.out.read_metrics,
+                QC_READS.out.frag_lens,
+                QC_PEAKS.out.orig_csv,
+                QC_PEAKS.out.orig_widths,
+                QC_PEAKS.out.rip,
+                QC_PEAKS.out.rep_csv,
+                QC_PEAKS.out.conp_csv,
+                QC_PEAKS.out.conp_bed,
+                QC_PEAKS.out.conp_ann,
+                ch_dp,
+                params.report_dir ? Channel.fromPath("${params.report_dir}", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true),
+                srcdir
             )
             ch_software_versions = ch_software_versions.mix(GENERATE_REPORT.out.versions)
 
@@ -731,16 +731,17 @@ workflow CUTANDRUN {
             GENERATE_REPORT_COMB_IGG(
                 samplesheet_combine_igg,
                 QC_READS.out.read_metrics.ifEmpty([]),
-                QC_READS.out.frag_lens.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.orig_csv.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.orig_widths.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.rip.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.rep_csv.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.conp_csv.collect{it[1]}.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.conp_bed.collect{it[1]}.flatten().collect().ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.conp_ann.collect{it[1]}.ifEmpty([]),
-                ch_dp_comb_igg.flatten().collect().ifEmpty([]),
-                params.report_dir ? Channel.fromPath("${params.report_dir}", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true)
+                QC_READS.out.frag_lens.ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.orig_csv.ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.orig_widths.ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.rip.ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.rep_csv.ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.conp_csv.ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.conp_bed.ifEmpty([]),
+                QC_PEAKS_COMB_IGG.out.conp_ann.ifEmpty([]),
+                ch_dp_comb_igg.ifEmpty([]),
+                params.report_dir ? Channel.fromPath("${params.report_dir}", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true),
+                srcdir
             )
             ch_software_versions = ch_software_versions.mix(GENERATE_REPORT_COMB_IGG.out.versions)
 
