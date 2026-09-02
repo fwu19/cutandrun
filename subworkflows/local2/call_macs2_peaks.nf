@@ -25,9 +25,8 @@ include { BAM_COVERAGE                                               } from "../
 workflow CALL_MACS2_PEAKS {
     take:
     bam_markdup
-    combine_igg
     meta_combine_igg
-    skip_individual_igg
+    use_igg
     srcdir
 
 
@@ -44,6 +43,8 @@ workflow CALL_MACS2_PEAKS {
     ch_broad_filtered   = Channel.empty()
     ch_broad_comb_igg  = Channel.empty()
     ch_broad_comb_igg_filtered  = Channel.empty()
+
+    ch_versions         = Channel.empty()
 
     if (!params.run_alignment){
         Channel.fromPath("${srcdir}/csv/map2genome.${params.aligner}.csv")
@@ -125,7 +126,7 @@ workflow CALL_MACS2_PEAKS {
     /*
     * Call peaks with IgG
     */
-    if (!skip_individual_igg){
+    if ('individual' in use_igg){
         /*
         * MACS2 narrow peaks
         */
@@ -191,7 +192,7 @@ workflow CALL_MACS2_PEAKS {
     /*
     * Call peaks against combined IgG
     */
-    if (combine_igg){
+    if ([ 'group', 'all', 'custom' ].any { it in use_igg }){
         meta_combine_igg
             .map { it -> [ it.id, it ]}
             .set { ch_meta_comb_igg }

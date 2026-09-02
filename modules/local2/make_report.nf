@@ -17,7 +17,7 @@ process MAKE_REPORT {
     path( "consensus_peaks/*" )
     path( "consensus_beds/*" )
     path( "consensus_annotation/*" )
-    path( "differential_peaks/*" )
+    path( "differential_peaks/" )
     path( "report" )
 
     output:

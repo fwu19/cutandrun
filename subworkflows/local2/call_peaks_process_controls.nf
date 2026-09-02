@@ -20,8 +20,8 @@ workflow CALL_PEAKS_PROCESS_CONTROLS {
     bedgraph_markdup
     bedgraph_dedup
     bam_markdup
-    igg_dir
     use_igg
+    igg_dir
 
     main:
     /*
@@ -67,7 +67,7 @@ workflow CALL_PEAKS_PROCESS_CONTROLS {
     /*
     * CHANNEL: Call SEACR peaks with igg
     */
-    if (use_igg){
+    if ('saved' in use_igg){
         ch_bedgraph_target
             .combine(
                 Channel.fromPath( "${igg_dir}/IgG.dedup.unnormalized.bedGraph", checkIfExists: true )
@@ -160,7 +160,7 @@ workflow CALL_PEAKS_PROCESS_CONTROLS {
     /*
     * Call MACS2 peaks with igg
     */
-    if (use_igg){
+    if ('saved' in use_igg){
         ch_bam_target
             .combine(
                 Channel.fromPath( "${igg_dir}/IgG.target.markdup.sorted.bam" , checkIfExists: true )
@@ -233,7 +233,7 @@ workflow CALL_PEAKS_PROCESS_CONTROLS {
     /*
     * prepare output channel
     */
-    if (use_igg){
+    if ('saved' in use_igg){
         ch_macs2_peaks_narrow_filtered
             .concat(
                 ch_macs2_peaks_igg_narrow,

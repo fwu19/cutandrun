@@ -31,8 +31,6 @@ for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true
 
 
 // Check mandatory parameters that cannot be checked in the groovy lib as we want a channel for them
-//if (params.input) { ch_input = file(params.input) } else { exit 1, "Input samplesheet not specified!" }
-
 ch_blacklist = Channel.empty()
 if (params.blacklist) {
     ch_blacklist = Channel.from( file(params.blacklist) )
@@ -84,6 +82,23 @@ if ((caller_list + callers).unique().size() != caller_list.size()) {
     exit 1, "Invalid variant calller option: ${params.peakcaller}. Valid options: ${caller_list.join(', ')}"
 }
 
+// Check IgG usage
+def igg_list = ['individual', 'all', 'custom', 'saved', 'none']
+use_igg = params.use_igg ? params.use_igg.split(',').collect{ it.trim().toLowerCase()} : ['individual']
+if ((igg_list + use_igg).unique().size() != igg_list.size()) {
+    exit 1, "Invalid IgG usage option: ${params.use_igg}. Valid options: ${igg_list.join(', ')}"
+}
+
+if (params.step && !['mapping', 'peak_calling', 'peak_qc', 'consensus_peaks', 'differential_peaks'].contains(params.step)) {
+    log.error "Invalid step specified: ${params.step}. Must be one of: mapping, peak_calling, peak_qc, consensus_peaks, differential_peaks"
+    System.exit(1)
+}
+
+if (params.update && !['mapping', 'peak_calling', 'peak_qc', 'consensus_peaks', 'differential_peaks', 'summary_plots', 'report'].contains(params.update)) {
+    log.error "Invalid update step specified: ${params.update}. Must be one of: mapping, peak_calling, peak_qc, consensus_peaks, differential_peaks, summary_plots, report"
+    System.exit(1)
+}
+
 /*
 ========================================================================================
     IMPORT LOCAL MODULES/SUBWORKFLOWS
@@ -102,7 +117,6 @@ include { EXTRACT_METADATA_AWK as EXTRACT_PICARD_DUP_META  } from "../subworkflo
 include { MARK_DUPLICATES_PICARD                           } from "../subworkflows/local/mark_duplicates_picard"
 include { MARK_DUPLICATES_PICARD as DEDUPLICATE_PICARD     } from "../subworkflows/local/mark_duplicates_picard"
 include { SAMTOOLS_VIEW_SORT_STATS as FILTER_READS         } from "../subworkflows/local/samtools_view_sort_stats"
-include { WRITE_OUTPUT_CSV                                 } from "../subworkflows/local2/write_output_csv"
 
 /*
 ========================================================================================
@@ -121,30 +135,20 @@ include { CAT_FASTQ                                                    } from ".
 ========================================================================================
 */
 include { INPUT_CHECK                                                        } from "../subworkflows/local2/input_check"
-include { IGG_CHECK                                                          } from '../subworkflows/local2/igg_check'
 include { CALL_SEACR_PEAKS                                                   } from '../subworkflows/local2/call_seacr_peaks'
 include { CALL_MACS2_PEAKS                                                   } from '../subworkflows/local2/call_macs2_peaks'
 include { CALL_PEAKS_PROCESS_CONTROLS                                        } from '../subworkflows/local2/call_peaks_process_controls'
 include { COMPUTE_GENOMECOVERAGE                                             } from "../subworkflows/local2/compute_genomecoverage"
 include { QC_READS                                                           } from '../subworkflows/local2/qc_reads'
 include { QC_PEAKS                                                           } from '../subworkflows/local2/qc_peaks'
-include { QC_PEAKS as QC_PEAKS_COMB_IGG                                      } from '../subworkflows/local2/qc_peaks'
 include { QC_PROCESS_CONTROLS                                                } from '../subworkflows/local2/qc_process_controls'
 include { CALL_DIFFERENTIAL_PEAKS                                            } from '../subworkflows/local2/call_differential_peaks'
-include { CALL_DIFFERENTIAL_PEAKS as CALL_DIFFERENTIAL_PEAKS_COMB_IGG        } from '../subworkflows/local2/call_differential_peaks'
 include { SUMMARY_PLOTS                                                      } from '../subworkflows/local2/summary_plots'
-include { SUMMARY_PLOTS as SUMMARY_PLOTS_COMB_IGG                            } from '../subworkflows/local2/summary_plots'
 include { GENERATE_REPORT                                                    } from '../subworkflows/local2/generate_report'
-include { GENERATE_REPORT as GENERATE_REPORT_COMB_IGG                        } from '../subworkflows/local2/generate_report'
+include { WRITE_OUTPUT_CSV                                                   } from "../subworkflows/local2/write_output_csv"
 
 include { GET_FASTQ_PATHS                                                    } from '../modules/local2/get_fastq_paths'
 include { MULTIQC                                                            } from '../modules/local2/multiqc'
-include { READS_IN_CONSENSUS_PEAKS                                           } from '../modules/local2/reads_in_consensus_peaks'
-include { READS_IN_CONSENSUS_PEAKS as READS_IN_CONSENSUS_PEAKS_COMB_IGG      } from '../modules/local2/reads_in_consensus_peaks'
-include { COLLECT_COUNT_MATRIX                                               } from '../modules/local2/collect_count_matrix'
-include { COLLECT_COUNT_MATRIX as COLLECT_COUNT_MATRIX_COMB_IGG              } from '../modules/local2/collect_count_matrix'
-include { DIFFERENTIAL_PEAKS                                                 } from '../modules/local2/differential_peaks'
-include { DIFFERENTIAL_PEAKS as DIFFERENTIAL_PEAKS_COMB_IGG                  } from '../modules/local2/differential_peaks'
 include { GENERATE_REPORT_PROCESS_CONTROLS                                   } from '../modules/local2/generate_report_process_controls'
 
 /*
@@ -182,6 +186,12 @@ workflow CUTANDRUN {
     /*
      * SUBWORKFLOW: Read in samplesheet, validate and stage input files
      */
+    samplesheet = Channel.empty()
+    ch_fastq_multi = Channel.empty()
+    ch_fastq_single = Channel.empty()
+    samplesheet = Channel.empty()
+    samplesheet_combine_igg = Channel.empty()
+    meta_combine_igg = Channel.empty()
     if(params.run_input_check) {
 
         /* Get fastq paths */
@@ -189,55 +199,32 @@ workflow CUTANDRUN {
             if ( params.input =~ 'dummy' ){
                 exit 1, 'Neither --input nor --input_dir is specified!'
             }else {
-                ch_input = Channel.fromPath( params.input, checkIfExists: true )
+                samplesheet = Channel.fromPath( params.input, checkIfExists: true )
             }
         }else {
             GET_FASTQ_PATHS (
                 Channel.fromPath("${params.input_dir}", checkIfExists: true),
                 params.workflow
             )
-            ch_input = GET_FASTQ_PATHS.out.csv
+            samplesheet = GET_FASTQ_PATHS.out.csv
             ch_software_versions = ch_software_versions.mix(GET_FASTQ_PATHS.out.versions)
         }
 
-        /* Add metadata */
+        /* Add metadata and create fastq channels */
         ch_metadata = params.metadata ? file( params.metadata, checkIfExists: true ) : ch_dummy_csv
         INPUT_CHECK (
-            ch_input,
+            samplesheet,
             ch_metadata,
-            params.workflow
+            params.workflow,
+            use_igg
         )
-
+        ch_fastq_multi = INPUT_CHECK.out.fastq_multi
+        ch_fastq_single = INPUT_CHECK.out.fastq_single
         samplesheet = INPUT_CHECK.out.samplesheet
+        samplesheet_combine_igg = INPUT_CHECK.out.samplesheet_comb_igg
+        meta_combine_igg = INPUT_CHECK.out.meta_igg
         ch_software_versions = ch_software_versions.mix(INPUT_CHECK.out.versions)
 
-        /* Generate sample sheet */
-        INPUT_CHECK.out.reads
-        .map {
-            meta, fastq ->
-                [ meta, fastq ] }
-        .groupTuple(by: [0])
-        .branch {
-            meta, fastq ->
-                single  : fastq.size() == 1
-                    return [ meta, fastq.flatten() ]
-                multiple: fastq.size() > 1
-                    return [ meta, fastq.flatten() ]
-        }
-        .set { ch_fastq }
-
-        /* Update sample sheet with combined IgG */
-        samplesheet_combine_igg = Channel.empty()
-        meta_combine_igg = Channel.empty()
-        if (params.run_combine_igg){
-            IGG_CHECK(
-                samplesheet,
-                params.igg_group
-            )
-            samplesheet_combine_igg = IGG_CHECK.out.samplesheet
-            meta_combine_igg = IGG_CHECK.out.meta
-            ch_software_versions = ch_software_versions.mix(IGG_CHECK.out.versions)
-        }
     }
 
 
@@ -246,12 +233,12 @@ workflow CUTANDRUN {
      */
     if(params.run_cat_fastq) {
         CAT_FASTQ (
-            ch_fastq.multiple
+            ch_fastq_multi
         )
         ch_software_versions = ch_software_versions.mix(CAT_FASTQ.out.versions)
 
         CAT_FASTQ.out.reads
-        .mix(ch_fastq.single)
+        .mix(ch_fastq_single)
         .set { ch_cat_fastq }
     }
     //EXAMPLE CHANNEL STRUCT: [[id:h3k27me3_R1, group:h3k27me3, replicate:1, single_end:false, is_control:false], [READS]]
@@ -260,6 +247,7 @@ workflow CUTANDRUN {
     /*
      * SUBWORKFLOW: Read QC, trim adapters and perform post-trim read QC
      */
+    ch_trimmed_reads = Channel.empty()
     if(params.run_trim_galore_fastqc) {
         FASTQC_TRIMGALORE (
             ch_cat_fastq,
@@ -472,12 +460,12 @@ workflow CUTANDRUN {
 
         MULTIQC(
             ch_multiqc_custom_config.ifEmpty([]),
-            ch_bowtie2_log.collect{it[1]}.ifEmpty([]),
-            ch_bowtie2_spikein_log.collect{it[1]}.ifEmpty([]),
-            ch_samtools_stats.collect{it[1]}.ifEmpty([]),
-            ch_samtools_flagstat.collect{it[1]}.ifEmpty([]),
-            ch_samtools_idxstats.collect{it[1]}.ifEmpty([]),
-            ch_markduplicates_metrics.collect{it[1]}.ifEmpty([])
+            ch_bowtie2_log.collect{it[1]},
+            ch_bowtie2_spikein_log.collect{it[1]},
+            ch_samtools_stats.collect{it[1]},
+            ch_samtools_flagstat.collect{it[1]},
+            ch_samtools_idxstats.collect{it[1]},
+            ch_markduplicates_metrics.collect{it[1]}
 
         )
         ch_multiqc_data = MULTIQC.out.data
@@ -487,325 +475,263 @@ workflow CUTANDRUN {
     /*
     * SUBWORKFLOW: QC reads
     */
+    ch_read_metrics = Channel.empty()
+    ch_frag_lens = Channel.empty()
     if (params.run_read_qc){
         QC_READS(
             ch_multiqc_data,
             ch_samtools_bam
         )
+        ch_read_metrics = QC_READS.out.read_metrics
+        ch_frag_lens = QC_READS.out.frag_lens
         ch_software_versions = ch_software_versions.mix(QC_READS.out.versions)
     }
 
     /*
      * SUBWORKFLOW: Call peaks from individual samples
      */
-    if(params.run_peak_calling & params.workflow == "cutandrun") {
-        println "Running peak calling with the following settings:"
+    peaks_narrow_igg = Channel.empty()
+    peaks_narrow_noigg = Channel.empty()
+    peaks_narrow_filtered = Channel.empty()
+    peaks_narrow_comb_igg_filtered = Channel.empty()
+    peaks_narrow_comb_igg = Channel.empty()
+    peaks_broad_igg = Channel.empty()
+    peaks_broad_noigg = Channel.empty()
+    peaks_broad_filtered = Channel.empty()
+    peaks_broad_comb_igg_filtered = Channel.empty()
+    peaks_broad_comb_igg = Channel.empty()
+    peaks_seacr_igg = Channel.empty()
+    peaks_seacr_noigg = Channel.empty()
+    peaks_seacr_filtered = Channel.empty()
+    peaks_seacr_comb_igg_filtered = Channel.empty()
+    peaks_seacr_comb_igg = Channel.empty()
+    if(params.run_peak_calling && params.workflow == "cutandrun") {
         CALL_SEACR_PEAKS (
             ch_bedgraph_markdup,
             ch_bedgraph_dedup,
-            params.run_combine_igg,
-            meta_combine_igg.ifEmpty([]),
-            params.skip_individual_igg,
+            meta_combine_igg,
+            use_igg,
             srcdir
         )
-
+        peaks_seacr_igg = CALL_SEACR_PEAKS.out.seacr_igg
+        peaks_seacr_noigg = CALL_SEACR_PEAKS.out.seacr_noigg
+        peaks_seacr_filtered = CALL_SEACR_PEAKS.out.seacr_filtered
+        peaks_seacr_comb_igg_filtered = CALL_SEACR_PEAKS.out.seacr_comb_igg_filtered
+        peaks_seacr_comb_igg = CALL_SEACR_PEAKS.out.seacr_comb_igg
         ch_software_versions = ch_software_versions.mix(CALL_SEACR_PEAKS.out.versions)
 
         CALL_MACS2_PEAKS (
             ch_samtools_bam_markdup,
-            params.run_combine_igg,
-            meta_combine_igg.ifEmpty([]),
-            params.skip_individual_igg,
+            meta_combine_igg,
+            use_igg,
             srcdir
         )
+        peaks_narrow_igg = CALL_MACS2_PEAKS.out.narrow_igg
+        peaks_narrow_noigg = CALL_MACS2_PEAKS.out.narrow_noigg
+        peaks_narrow_filtered = CALL_MACS2_PEAKS.out.narrow_filtered
+        peaks_narrow_comb_igg_filtered = CALL_MACS2_PEAKS.out.narrow_comb_igg_filtered
+        peaks_narrow_comb_igg = CALL_MACS2_PEAKS.out.narrow_comb_igg
+        peaks_broad_igg = CALL_MACS2_PEAKS.out.broad_igg
+        peaks_broad_noigg = CALL_MACS2_PEAKS.out.broad_noigg
+        peaks_broad_filtered = CALL_MACS2_PEAKS.out.broad_filtered
+        peaks_broad_comb_igg_filtered = CALL_MACS2_PEAKS.out.broad_comb_igg_filtered
+        peaks_broad_comb_igg = CALL_MACS2_PEAKS.out.broad_comb_igg
         ch_software_versions = ch_software_versions.mix(CALL_MACS2_PEAKS.out.versions)
 
     }
 
 
     /*
-    * SUBWORKFLOWS with individual IgG: QC and differential peaks
+    * SUBWORKFLOW: QC peaks
     */
-    if (params.run_individual_igg){
-        /*
-        * SUBWORKFLOW: QC peaks using matched IgG controls
-        */
-        ch_peaks_all = Channel.empty()
-        ch_peaks_final = Channel.empty()
-        if (params.run_peak_qc){
-        CALL_MACS2_PEAKS.out.narrow_filtered
-            .concat(
-                CALL_MACS2_PEAKS.out.narrow_igg,
-                CALL_MACS2_PEAKS.out.narrow_noigg,
-                CALL_MACS2_PEAKS.out.broad_filtered,
-                CALL_MACS2_PEAKS.out.broad_igg,
-                CALL_MACS2_PEAKS.out.broad_noigg,
-                CALL_SEACR_PEAKS.out.seacr_filtered,
-                CALL_SEACR_PEAKS.out.seacr_igg,
-                CALL_SEACR_PEAKS.out.seacr_noigg
-        )
-        .groupTuple(by: 0)
-        .set { ch_peaks_all}
-        // ch_peaks_all.view()
-        // [ [meta], [path(peak1), path(peak2), ...] ]
-
-
-        CALL_MACS2_PEAKS.out.narrow_filtered
-            .mix( CALL_MACS2_PEAKS.out.narrow_noigg.filter(it -> it[0].control_group == "") )
-            .concat (
-            CALL_MACS2_PEAKS.out.broad_filtered
-                .mix( CALL_MACS2_PEAKS.out.broad_noigg.filter(it -> it[0].control_group == "") ),
-            CALL_SEACR_PEAKS.out.seacr_filtered
-                .mix( CALL_SEACR_PEAKS.out.seacr_noigg.filter(it -> it[0].control_group == "") )
-            )
-            .groupTuple(by: 0)
-            .set { ch_peaks_final}
-        // ch_peaks_final.view()
-        // [ [meta], path(macs2_narrow_peak), path(macs2_broad_peak), path(seacr_peak) ]
-
+    ch_orig_csv = Channel.empty()
+    ch_orig_widths = Channel.empty()
+    ch_rip = Channel.empty()
+    ch_rep_csv = Channel.empty()
+    ch_conp_csv = Channel.empty()
+    ch_conp_bed = Channel.empty()
+    ch_conp_ann = Channel.empty()
+    ch_orig_csv_comb_igg = Channel.empty()
+    ch_orig_widths_comb_igg = Channel.empty()
+    ch_rip_comb_igg = Channel.empty()
+    ch_rep_csv_comb_igg = Channel.empty()
+    ch_conp_csv_comb_igg = Channel.empty()
+    ch_conp_bed_comb_igg = Channel.empty()
+    ch_conp_ann_comb_igg = Channel.empty()
+    if (params.run_peak_qc){
         QC_PEAKS(
+            peaks_seacr_filtered,
+            peaks_seacr_igg,
+            peaks_seacr_noigg,
+            peaks_seacr_comb_igg_filtered,
+            peaks_seacr_comb_igg,
+            peaks_narrow_filtered,
+            peaks_narrow_igg,
+            peaks_narrow_noigg,
+            peaks_narrow_comb_igg_filtered,
+            peaks_narrow_comb_igg,
+            peaks_broad_filtered,
+            peaks_broad_igg,
+            peaks_broad_noigg,
+            peaks_broad_comb_igg_filtered,
+            peaks_broad_comb_igg,
             samplesheet,
+            samplesheet_combine_igg,
+            ch_samtools_bam,
+            use_igg,
             params.min_replicates,
             params.fasta,
             params.gtf ? file(params.gtf, checkIfExists: true) : ch_dummy_file,
-            ch_samtools_bam,
-            ch_peaks_all,
-            ch_peaks_final
-
+            srcdir
         )
+        ch_orig_csv = QC_PEAKS.out.orig_csv
+        ch_orig_widths = QC_PEAKS.out.orig_widths
+        ch_rip = QC_PEAKS.out.rip
+        ch_rep_csv = QC_PEAKS.out.rep_csv
+        ch_conp_csv = QC_PEAKS.out.conp_csv
+        ch_conp_bed = QC_PEAKS.out.conp_bed
+        ch_conp_ann = QC_PEAKS.out.conp_ann
+        ch_orig_csv_comb_igg = QC_PEAKS.out.orig_csv_comb_igg
+        ch_orig_widths_comb_igg = QC_PEAKS.out.orig_widths_comb_igg
+        ch_rip_comb_igg = QC_PEAKS.out.rip_comb_igg
+        ch_rep_csv_comb_igg = QC_PEAKS.out.rep_csv_comb_igg
+        ch_conp_csv_comb_igg = QC_PEAKS.out.conp_csv_comb_igg
+        ch_conp_bed_comb_igg = QC_PEAKS.out.conp_bed_comb_igg
+        ch_conp_ann_comb_igg = QC_PEAKS.out.conp_ann_comb_igg
         ch_software_versions = ch_software_versions.mix(QC_PEAKS.out.versions)
-        }
+    }
 
-        /*
-        * SUBWORKFLOW: Call differential peaks from peaks using matched IgG controls
-        */
-        ch_dp = Channel.empty()
-        if (params.run_differential_peaks){
+
+    /*
+    * SUBWORKFLOW: Call differential peaks from peaks using matched IgG controls
+    */
+    ch_dp = Channel.empty()
+    ch_dp_comb_igg = Channel.empty()
+    if (params.run_differential_peaks && params.comparison){
         CALL_DIFFERENTIAL_PEAKS(
             samplesheet,
-            QC_PEAKS.out.conp_bed,
+            ch_conp_bed,
+            samplesheet_combine_igg,
+            ch_conp_bed_comb_igg,
             ch_samtools_bam,
+            use_igg,
             srcdir
         )
         ch_dp = CALL_DIFFERENTIAL_PEAKS.out.dp
+        ch_dp_comb_igg = CALL_DIFFERENTIAL_PEAKS.out.dp_comb_igg
         ch_software_versions = ch_software_versions.mix(CALL_DIFFERENTIAL_PEAKS.out.versions)
-        }
-
-        /*
-        * SUBWORKFLOW: make heatmaps and other summary plots for peaks using matched IgG controls
-        */
-        if (params.run_summary_plots){
-        SUMMARY_PLOTS(
-            ch_bigwig_markdup,
-            QC_PEAKS.out.conp_bed,
-            QC_PEAKS.out.conp_ann,
-            ch_dp.ifEmpty([]),
-            params.gtf ? file(params.gtf, checkIfExists: true) : ch_dummy_file,
-            params.gene_bed ? file(params.gene_bed, checkIfExists: true) : "$projectDir/assets/dummy_file.txt",
-            true
-        )
-        ch_software_versions = ch_software_versions.mix(SUMMARY_PLOTS.out.versions)
-        }
-
-        /*
-        * SUBWORKFLOW: Generate report for results using matched IgG controls
-        */
-        if (params.run_reporting){
-            /*
-            * Make plots for report
-            */
-
-            GENERATE_REPORT(
-                samplesheet,
-                QC_READS.out.read_metrics,
-                QC_READS.out.frag_lens,
-                QC_PEAKS.out.orig_csv,
-                QC_PEAKS.out.orig_widths,
-                QC_PEAKS.out.rip,
-                QC_PEAKS.out.rep_csv,
-                QC_PEAKS.out.conp_csv,
-                QC_PEAKS.out.conp_bed,
-                QC_PEAKS.out.conp_ann,
-                ch_dp,
-                params.report_dir ? Channel.fromPath("${params.report_dir}", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true),
-                srcdir
-            )
-            ch_software_versions = ch_software_versions.mix(GENERATE_REPORT.out.versions)
-
-        }
-
     }
 
-
     /*
-    * SUBWORKFLOWS with combined IgG: QC and differential peaks
+    * SUBWORKFLOW: Generate analysis report
     */
-    if (params.run_combine_igg){
-        ch_peaks_comb_igg_all = Channel.empty()
-        ch_peaks_comb_igg_final = Channel.empty()
-        /*
-        * SUBWORKFLOW: QC peaks using combined IgG controls
-        */
-        if (params.run_peak_qc){
-        CALL_MACS2_PEAKS.out.narrow_comb_igg_filtered
-            .concat(
-                CALL_MACS2_PEAKS.out.narrow_comb_igg,
-                CALL_MACS2_PEAKS.out.narrow_noigg,
-                CALL_MACS2_PEAKS.out.broad_comb_igg_filtered,
-                CALL_MACS2_PEAKS.out.broad_comb_igg,
-                CALL_MACS2_PEAKS.out.broad_noigg,
-                CALL_SEACR_PEAKS.out.seacr_comb_igg_filtered,
-                CALL_SEACR_PEAKS.out.seacr_comb_igg,
-                CALL_SEACR_PEAKS.out.seacr_noigg
-        )
-        .groupTuple(by: 0)
-        .set { ch_peaks_comb_igg_all}
-        // ch_peaks_all.view()
-        // [ [meta], [path(peak1), path(peak2), ...] ]
-
-
-        CALL_MACS2_PEAKS.out.narrow_comb_igg_filtered
-            .mix( CALL_MACS2_PEAKS.out.narrow_noigg.filter(it -> it[0].control_group == "") )
-            .concat (
-            CALL_MACS2_PEAKS.out.broad_comb_igg_filtered
-                .mix( CALL_MACS2_PEAKS.out.broad_noigg.filter(it -> it[0].control_group == "") ),
-            CALL_SEACR_PEAKS.out.seacr_comb_igg_filtered
-                .mix( CALL_SEACR_PEAKS.out.seacr_noigg.filter(it -> it[0].control_group == "") )
-            )
-            .groupTuple(by: 0)
-            .set { ch_peaks_comb_igg_final}
-        // ch_peaks_final.view()
-        // [ [meta], path(macs2_narrow_peak), path(macs2_broad_peak), path(seacr_peak) ]
-
-        QC_PEAKS_COMB_IGG(
-            samplesheet_combine_igg,
-            params.min_replicates,
-            params.fasta,
-            params.gtf ? file(params.gtf, checkIfExists: true) : ch_dummy_file,
-            ch_samtools_bam,
-            ch_peaks_comb_igg_all,
-            ch_peaks_comb_igg_final
-
-        )
-        ch_software_versions = ch_software_versions.mix(QC_PEAKS_COMB_IGG.out.versions)
-        }
-
-        /*
-        * SUBWORKFLOW: Call differential peaks from peaks using combined IgG controls
-        */
-        ch_dp_comb_igg = Channel.empty()
-        if (params.run_differential_peaks){
-        CALL_DIFFERENTIAL_PEAKS_COMB_IGG(
+    if (params.run_reporting){
+        GENERATE_REPORT(
+            ch_read_metrics,
+            ch_frag_lens,
             samplesheet,
-            QC_PEAKS_COMB_IGG.out.conp_bed,
-            ch_samtools_bam,
+            ch_orig_csv,
+            ch_orig_widths,
+            ch_rip,
+            ch_rep_csv,
+            ch_conp_csv,
+            ch_conp_bed,
+            ch_conp_ann,
+            ch_dp,
+            samplesheet_combine_igg,
+            ch_orig_csv_comb_igg,
+            ch_orig_widths_comb_igg,
+            ch_rip_comb_igg,
+            ch_rep_csv_comb_igg,
+            ch_conp_csv_comb_igg,
+            ch_conp_bed_comb_igg,
+            ch_conp_ann_comb_igg,
+            ch_dp_comb_igg,
+            use_igg,
+            params.report_dir ? Channel.fromPath("${params.report_dir}", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true),
             srcdir
         )
-        ch_dp = CALL_DIFFERENTIAL_PEAKS_COMB_IGG.out.dp
-        ch_software_versions = ch_software_versions.mix(CALL_DIFFERENTIAL_PEAKS_COMB_IGG.out.versions)
-
-        }
-
-
-        /*
-        * SUBWORKFLOW: make heatmaps and other summary plots
-        */
-        if (params.run_summary_plots){
-        SUMMARY_PLOTS_COMB_IGG(
-            ch_bigwig_markdup,
-            QC_PEAKS_COMB_IGG.out.conp_bed,
-            QC_PEAKS_COMB_IGG.out.conp_ann,
-            ch_dp_comb_igg.ifEmpty([]),
-            params.gtf ? file(params.gtf, checkIfExists: true) : ch_dummy_file,
-            params.gene_bed ? file(params.gene_bed, checkIfExists: true) : ch_dummy_file,
-            false
-        )
-        ch_software_versions = ch_software_versions.mix(SUMMARY_PLOTS_COMB_IGG.out.versions)
-        }
-
-
-        /*
-        * SUBWORKFLOW: Generate report
-        */
-        if (params.run_reporting){
-            GENERATE_REPORT_COMB_IGG(
-                samplesheet_combine_igg,
-                QC_READS.out.read_metrics.ifEmpty([]),
-                QC_READS.out.frag_lens.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.orig_csv.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.orig_widths.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.rip.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.rep_csv.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.conp_csv.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.conp_bed.ifEmpty([]),
-                QC_PEAKS_COMB_IGG.out.conp_ann.ifEmpty([]),
-                ch_dp_comb_igg.ifEmpty([]),
-                params.report_dir ? Channel.fromPath("${params.report_dir}", type: 'dir', checkIfExists: true) : Channel.fromPath("$projectDir/assets/local/report/", type: 'dir', checkIfExists: true),
-                srcdir
-            )
-            ch_software_versions = ch_software_versions.mix(GENERATE_REPORT_COMB_IGG.out.versions)
-
-
-        }
+        ch_software_versions = ch_software_versions.mix(GENERATE_REPORT.out.versions)
 
     }
 
 
     /*
-    * "process control" workflow: peak calling, QC and differential peaks
+    * SUBWORKFLOW: make heatmaps and other summary plots for peaks using matched IgG controls
     */
+    if (params.run_summary_plots){
+        SUMMARY_PLOTS(
+            ch_bigwig_markdup,
+            ch_conp_bed,
+            ch_conp_ann,
+            ch_dp,
+            ch_conp_bed_comb_igg,
+            ch_conp_ann_comb_igg,
+            ch_dp_comb_igg,
+            use_igg,
+            params.gtf ? file(params.gtf, checkIfExists: true) : ch_dummy_file,
+            params.gene_bed ? file(params.gene_bed, checkIfExists: true) : "$projectDir/assets/dummy_file.txt"
+        )
+        ch_software_versions = ch_software_versions.mix(SUMMARY_PLOTS.out.versions)
+    }
+
+
+    /*
+    * "process control" workflow: peak calling, QC and analysis report
+    */
+    ch_peaks_all = Channel.empty()
+    ch_peaks_final = Channel.empty()
     if (params.workflow == "process_controls"){
         /*
         * SUBWORKFLOW: Call peaks for "process controls" workflow
         */
         if(params.run_peak_calling) {
-        CALL_PEAKS_PROCESS_CONTROLS (
+            CALL_PEAKS_PROCESS_CONTROLS (
             ch_bedgraph_markdup,
             ch_bedgraph_dedup,
             ch_samtools_bam_markdup,
-            params.igg_dir,
-            params.use_igg
-        )
-        ch_peaks_all = CALL_PEAKS_PROCESS_CONTROLS.out.peaks_all
-        // ch_peaks_all.view()
-        // [ meta, [peaks] ]
+            use_igg,
+            params.igg_dir
+            )
+            ch_peaks_all = CALL_PEAKS_PROCESS_CONTROLS.out.peaks_all
+            // ch_peaks_all.view()
+            // [ meta, [peaks] ]
 
-        ch_peaks_final = CALL_PEAKS_PROCESS_CONTROLS.out.peaks_final
-        // ch_peaks_final.view()
-        // [ meta, [peaks] ]
+            ch_peaks_final = CALL_PEAKS_PROCESS_CONTROLS.out.peaks_final
+            // ch_peaks_final.view()
+            // [ meta, [peaks] ]
 
-        ch_software_versions = ch_software_versions.mix(CALL_PEAKS_PROCESS_CONTROLS.out.versions)
+            ch_software_versions = ch_software_versions.mix(CALL_PEAKS_PROCESS_CONTROLS.out.versions)
         }
 
         /*
         * SUBWORKFLOW: QC peaks for "process controls" workflow
         */
         if (params.run_peak_qc){
-        ch_ref_peaks = params.ref_peaks ? Channel.fromPath("${params.ref_peaks}", type: "dir", checkIfExists: true) : Channel.empty()
-        QC_PROCESS_CONTROLS(
+            ch_ref_peaks = params.ref_peaks ? Channel.fromPath("${params.ref_peaks}", type: "dir", checkIfExists: true) : Channel.empty()
+            QC_PROCESS_CONTROLS(
             samplesheet,
             params.genome,
             ch_samtools_bam,
             ch_peaks_all,
             ch_peaks_final,
-            ch_ref_peaks.ifEmpty([])
-        )
-        ch_software_versions = ch_software_versions.mix(QC_PROCESS_CONTROLS.out.versions)
+            ch_ref_peaks
+            )
+            ch_software_versions = ch_software_versions.mix(QC_PROCESS_CONTROLS.out.versions)
         }
 
         /*
         * SUBWORKFLOW: Generate report for "process controls" workflow
         */
         if (params.run_reporting){
-
             GENERATE_REPORT_PROCESS_CONTROLS(
                 samplesheet,
-                QC_READS.out.read_metrics.ifEmpty([]),
-                QC_READS.out.frag_lens.collect{it[1]}.ifEmpty([]),
-                QC_PROCESS_CONTROLS.out.orig_csv.collect{it[1]}.ifEmpty([]),
-                QC_PROCESS_CONTROLS.out.orig_widths.collect{it[1]}.ifEmpty([]),
-                QC_PROCESS_CONTROLS.out.rip.collect{it[1]}.ifEmpty([]),
-                QC_PROCESS_CONTROLS.out.rep_csv.collect{it[1]}.ifEmpty([]),
+                ch_read_metrics,
+                ch_frag_lens.collect{it[1]},
+                QC_PROCESS_CONTROLS.out.orig_csv.collect{it[1]},
+                QC_PROCESS_CONTROLS.out.orig_widths.collect{it[1]},
+                QC_PROCESS_CONTROLS.out.rip.collect{it[1]},
+                QC_PROCESS_CONTROLS.out.rep_csv.collect{it[1]},
                 params.saved_data ? Channel.fromPath("${params.saved_data}", type: "dir", checkIfExists: true) : Channel.empty(),
                 params.report_rmd ? Channel.fromPath("${params.report_rmd}", checkIfExists: true) : Channel.empty()
             )
@@ -827,28 +753,31 @@ workflow CUTANDRUN {
         )
         */
     }else{
-        /*
+
         WRITE_OUTPUT_CSV(
-            ch_samtools_bam_markdup.join(ch_samtools_bai_markdup).ifEmpty([]),
-            ch_bedgraph_markdup.ifEmpty([]),
-            ch_bedgraph_dedup.ifEmpty([]),
-            params.run_peak_calling ? CALL_MACS2_PEAKS.out.narrow_noigg : [],
-            params.run_peak_calling ? CALL_MACS2_PEAKS.out.narrow_filtered : [],
-            params.run_peak_calling ? CALL_MACS2_PEAKS.out.narrow_igg : [],
-            params.run_peak_calling ? CALL_MACS2_PEAKS.out.narrow_comb_igg_filtered : [],
-            params.run_peak_calling ? CALL_MACS2_PEAKS.out.narrow_comb_igg : [],
-            params.run_peak_calling ? CALL_MACS2_PEAKS.out.broad_noigg : [],
-            params.run_peak_calling ? CALL_MACS2_PEAKS.out.broad_filtered : [],
-            params.run_peak_calling ? CALL_MACS2_PEAKS.out.broad_igg : [],
-            params.run_peak_calling ? CALL_MACS2_PEAKS.out.broad_comb_igg_filtered : [],
-            params.run_peak_calling ? CALL_MACS2_PEAKS.out.broad_comb_igg : [],
-            params.run_peak_calling ? CALL_SEACR_PEAKS.out.seacr_noigg : [],
-            params.run_peak_calling ? CALL_SEACR_PEAKS.out.seacr_filtered : [],
-            params.run_peak_calling ? CALL_SEACR_PEAKS.out.seacr_igg : [],
-            params.run_peak_calling ? CALL_SEACR_PEAKS.out.seacr_comb_igg_filtered : [],
-            params.run_peak_calling ? CALL_SEACR_PEAKS.out.seacr_comb_igg : []
+            ch_samtools_bam_markdup.join(ch_samtools_bai_markdup),
+            ch_bedgraph_markdup,
+            ch_bedgraph_dedup,
+            peaks_narrow_noigg,
+            peaks_narrow_filtered,
+            peaks_narrow_igg,
+            peaks_narrow_comb_igg_filtered,
+            peaks_narrow_comb_igg,
+            peaks_broad_noigg,
+            peaks_broad_filtered,
+            peaks_broad_igg,
+            peaks_broad_comb_igg_filtered,
+            peaks_broad_comb_igg,
+            peaks_seacr_noigg,
+            peaks_seacr_filtered,
+            peaks_seacr_igg,
+            peaks_seacr_comb_igg_filtered,
+            peaks_seacr_comb_igg,
+            ch_conp_bed,
+            ch_conp_bed_comb_igg
         )
-        */
+
+
     }
 
 

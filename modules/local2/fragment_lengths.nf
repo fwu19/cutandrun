@@ -12,7 +12,7 @@ process FRAGMENT_LENGTHS {
     tuple val (meta), path (bam)
 
     output:
-    tuple val (meta), path("*.fragment_lengths.txt"), emit: txt
+    path("*.fragment_lengths.txt"), emit: txt
     path ( "versions.yml" ), emit: versions
 
     script:

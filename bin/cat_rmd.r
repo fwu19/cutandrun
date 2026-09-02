@@ -282,7 +282,7 @@ file.copy('report/report.setup.Rmd', 'report.Rmd')
 if (file.exists('read_metrics.csv')){file.append('report.Rmd', 'report/report.read_qc.Rmd')}
 if (dir.exists('original_peaks')){file.append('report.Rmd', 'report/report.orig_qc.Rmd')}
 if (dir.exists('consensus_peaks')){file.append('report.Rmd', 'report/report.conp_qc.Rmd')}
-if (file.exists('dp.rds')){
+if (dir.exists('differential_peaks')){
   file.append('report.Rmd', 'report/report.diff_peaks.Rmd')
 }
 file.append('report.Rmd', 'report/report.deliverables.Rmd')

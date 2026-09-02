@@ -14,9 +14,8 @@ workflow CALL_SEACR_PEAKS {
     take:
     bedgraph_markdup
     bedgraph_dedup
-    combine_igg
     meta_combine_igg
-    skip_individual_igg
+    use_igg
     srcdir
 
     main:
@@ -26,6 +25,7 @@ workflow CALL_SEACR_PEAKS {
     ch_seacr_filtered           = Channel.empty()
     ch_seacr_comb_igg           = Channel.empty()
     ch_seacr_comb_igg_filtered  = Channel.empty()
+    ch_versions                 = Channel.empty()
 
     if (!params.run_alignment){
         Channel.fromPath("${srcdir}/csv/genome_coverage.markdup_bdg.csv")
@@ -111,7 +111,7 @@ workflow CALL_SEACR_PEAKS {
     * with IgG control
     */
 
-    if (!skip_individual_igg){
+    if ('individual' in use_igg){
         SEACR_CALLPEAK_IGG (
             ch_bedgraph_paired,
             params.seacr_peak_threshold
@@ -139,7 +139,7 @@ workflow CALL_SEACR_PEAKS {
     /*
     * Call peaks against combined IgG
     */
-    if (combine_igg){
+    if ([ 'group', 'all', 'custom' ].any { it in use_igg }){
         meta_combine_igg
             .map { it -> [ it.id, it ]}
             .set { ch_meta_comb_igg }

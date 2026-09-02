@@ -10,7 +10,7 @@ process ORIGINAL_PEAK_WIDTHS {
     tuple val(meta), path( "peaks/*" )
 
     output:
-    tuple val(meta), path( "*.csv" ), emit: csv
+    path( "*.csv" ), emit: csv
     path ('versions.yml'), emit: versions
 
     script:

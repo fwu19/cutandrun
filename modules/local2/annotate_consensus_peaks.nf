@@ -11,7 +11,7 @@ process ANNOTATE_CONSENSUS_PEAKS {
     path (conp)
 
     output:
-    tuple path(conp), path ( "*.annotation.txt" ), emit: txt, optional: true
+    path ( "*.annotation.txt" ), emit: txt, optional: true
     path ( gtf ), emit: gtf, optional: true
     path ( "versions.yml" ), emit: versions
 

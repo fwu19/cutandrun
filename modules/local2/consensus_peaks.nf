@@ -10,8 +10,8 @@ process CONSENSUS_PEAKS {
     tuple val (target), path ( "peaks/*" ), path (samplesheet)
 
     output:
-    tuple val(target), path ( "*.csv" ), emit: csv
-    tuple val(target), path ( "*.rds" ), emit: rds
+    path ( "*.csv" ), emit: csv
+    path ( "*.rds" ), emit: rds
     tuple val(target), path ( "*.bed" ), emit: bed
     path ('versions.yml'), emit: versions
 
@@ -21,7 +21,7 @@ process CONSENSUS_PEAKS {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        featureCounts: \$( featureCounts -v | sed -e "s/featureCounts //g" )
+        R: \$(R --version | head -n 1)
     END_VERSIONS
 
     """

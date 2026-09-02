@@ -22,6 +22,8 @@ include { WRITE_CSV as WRITE_CSV_SEACR_FILTERED } from '../../modules/local2/wri
 include { WRITE_CSV as WRITE_CSV_SEACR_IGG } from '../../modules/local2/write_csv.nf'
 include { WRITE_CSV as WRITE_CSV_SEACR_COMB_IGG_FILTERED } from '../../modules/local2/write_csv.nf'
 include { WRITE_CSV as WRITE_CSV_SEACR_COMB_IGG } from '../../modules/local2/write_csv.nf'
+include { WRITE_CSV as WRITE_CSV_CONP } from '../../modules/local2/write_csv.nf'
+include { WRITE_CSV as WRITE_CSV_CONP_COMB_IGG } from '../../modules/local2/write_csv.nf'
 
 
 workflow WRITE_OUTPUT_CSV {
@@ -44,6 +46,8 @@ workflow WRITE_OUTPUT_CSV {
     seacr_igg
     seacr_comb_igg_filtered
     seacr_comb_igg
+    conp_bed
+    conp_bed_comb_igg
 
     main:
 
@@ -90,175 +94,172 @@ workflow WRITE_OUTPUT_CSV {
 
     /* peaks.csv */
     if (params.run_peak_calling && params.workflow == "cutandrun" ){
-        macs2_narrow_noigg
+        WRITE_CSV_MACS2_NARROW_NOIGG(
+            macs2_narrow_noigg
                 .map {
                     it -> it[0] + [macs2_narrow_noigg: "${params.macs2_narrow_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{macs2_narrow_noigg}
-        WRITE_CSV_MACS2_NARROW_NOIGG(
-            macs2_narrow_noigg,
-                "peaks.macs2_narrow_noigg.csv"
+                .collect(),
+            "peaks.macs2_narrow_noigg.csv"
         )
 
-        macs2_narrow_filtered
+        WRITE_CSV_MACS2_NARROW_FILTERED(
+            macs2_narrow_filtered
                 .map {
                     it -> it[0] + [macs2_narrow_filtered: "${params.macs2_narrow_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{macs2_narrow_filtered}
-        WRITE_CSV_MACS2_NARROW_FILTERED(
-            macs2_narrow_filtered,
-                "peaks.individual_igg.macs2_narrow_filtered.csv"
+                .collect(),
+            "peaks.individual_igg.macs2_narrow_filtered.csv"
         )
 
-        macs2_narrow
+        WRITE_CSV_MACS2_NARROW_IGG(
+            macs2_narrow
                 .map {
                     it -> it[0] + [macs2_narrow_igg: "${params.macs2_narrow_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{macs2_narrow_igg}
-        WRITE_CSV_MACS2_NARROW_IGG(
-            macs2_narrow_igg,
-                "peaks.individual_igg.macs2_narrow_igg.csv"
+                .collect(),
+            "peaks.individual_igg.macs2_narrow_igg.csv"
         )
 
-        macs2_narrow_comb_igg_filtered
+        WRITE_CSV_MACS2_NARROW_COMB_IGG_FILTERED(
+            macs2_narrow_comb_igg_filtered
                 .map {
                     it -> it[0] + [macs2_narrow_filtered: "${params.macs2_narrow_comb_igg_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{macs2_narrow_comb_igg_filtered}
-        WRITE_CSV_MACS2_NARROW_COMB_IGG_FILTERED(
-            macs2_narrow_comb_igg_filtered,
-                "peaks.combine_igg.macs2_narrow_filtered.csv"
+                .collect(),
+            "peaks.combine_igg.macs2_narrow_filtered.csv"
         )
 
-        macs2_narrow_comb_igg
+        WRITE_CSV_MACS2_NARROW_COMB_IGG(
+            macs2_narrow_comb_igg
                 .map {
                     it -> it[0] + [macs2_narrow_igg: "${params.macs2_narrow_comb_igg_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{macs2_narrow_comb_igg}
-        WRITE_CSV_MACS2_NARROW_COMB_IGG(
-            macs2_narrow_comb_igg,
-                "peaks.combine_igg.macs2_narrow_igg.csv"
+                .collect(),
+            "peaks.combine_igg.macs2_narrow_igg.csv"
         )
 
     }
 
     if (params.run_peak_calling && params.workflow == "cutandrun" ){
-        macs2_broad_noigg
+        WRITE_CSV_MACS2_BROAD_NOIGG(
+            macs2_broad_noigg
                 .map {
                     it -> it[0] + [macs2_broad_noigg: "${params.macs2_broad_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{macs2_broad_noigg}
-        WRITE_CSV_MACS2_BROAD_NOIGG(
-            macs2_broad_noigg,
-                "peaks.macs2_broad_noigg.csv"
+                .collect(),
+            "peaks.macs2_broad_noigg.csv"
         )
 
-        macs2_broad_filtered
+        WRITE_CSV_MACS2_BROAD_FILTERED(
+            macs2_broad_filtered
                 .map {
                     it -> it[0] + [macs2_broad_filtered: "${params.macs2_broad_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{macs2_broad_filtered}
-        WRITE_CSV_MACS2_BROAD_FILTERED(
-            macs2_broad_filtered,
-                "peaks.individual_igg.macs2_broad_filtered.csv"
+                .collect(),
+            "peaks.individual_igg.macs2_broad_filtered.csv"
         )
 
-        macs2_broad
+        WRITE_CSV_MACS2_BROAD_IGG(
+            macs2_broad
                 .map {
                     it -> it[0] + [macs2_broad_igg: "${params.macs2_broad_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{macs2_broad_igg}
-        WRITE_CSV_MACS2_BROAD_IGG(
-            macs2_broad_igg,
+                .collect(),
                 "peaks.individual_igg.macs2_broad_igg.csv"
         )
 
-        macs2_broad_comb_igg_filtered
+        WRITE_CSV_MACS2_BROAD_COMB_IGG_FILTERED(
+            macs2_broad_comb_igg_filtered
                 .map {
                     it -> it[0] + [macs2_broad_filtered: "${params.macs2_broad_comb_igg_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{macs2_broad_comb_igg_filtered}
-        WRITE_CSV_MACS2_BROAD_COMB_IGG_FILTERED(
-            macs2_broad_comb_igg_filtered,
-                "peaks.combine_igg.macs2_broad_filtered.csv"
+                .collect(),
+            "peaks.combine_igg.macs2_broad_filtered.csv"
         )
 
-        macs2_broad_comb_igg
+        WRITE_CSV_MACS2_BROAD_COMB_IGG(
+            macs2_broad_comb_igg
                 .map {
                     it -> it[0] + [macs2_broad_igg: "${params.macs2_broad_comb_igg_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{macs2_broad_comb_igg}
-        WRITE_CSV_MACS2_BROAD_COMB_IGG(
-            macs2_broad_comb_igg,
-                "peaks.combine_igg.macs2_broad_igg.csv"
+                .collect(),
+            "peaks.combine_igg.macs2_broad_igg.csv"
         )
 
     }
 
     if (params.run_peak_calling && params.workflow == "cutandrun" ){
-        seacr_noigg
+        WRITE_CSV_SEACR_NOIGG(
+            seacr_noigg
                 .map {
                     it -> it[0] + [seacr_noigg: "${params.seacr_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{seacr_noigg}
-        WRITE_CSV_SEACR_NOIGG(
-            seacr_noigg,
-                "peaks.seacr_noigg.csv"
+                .collect(),
+            "peaks.seacr_noigg.csv"
         )
 
-        seacr_filtered
+        WRITE_CSV_SEACR_FILTERED(
+            seacr_filtered
                 .map {
                     it -> it[0] + [seacr_filtered: "${params.seacr_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{seacr_filtered}
-        WRITE_CSV_SEACR_FILTERED(
-            seacr_filtered,
-                "peaks.individual_igg.seacr_filtered.csv"
+                .collect(),
+            "peaks.individual_igg.seacr_filtered.csv"
         )
 
-        seacr_igg
+        WRITE_CSV_SEACR_IGG(
+            seacr_igg
                 .map {
                     it -> it[0] + [seacr_igg: "${params.seacr_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{seacr_igg}
-        WRITE_CSV_SEACR_IGG(
-            seacr_igg,
-                "peaks.individual_igg.seacr_igg.csv"
+                .collect(),
+            "peaks.individual_igg.seacr_igg.csv"
         )
 
-        seacr_comb_igg_filtered
+        WRITE_CSV_SEACR_COMB_IGG_FILTERED(
+            seacr_comb_igg_filtered
                 .map {
                     it -> it[0] + [seacr_filtered: "${params.seacr_comb_igg_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{seacr_comb_igg_filtered}
-        WRITE_CSV_SEACR_COMB_IGG_FILTERED(
-            seacr_comb_igg_filtered,
-                "peaks.combine_igg.seacr_filtered.csv"
+                .collect(),
+            "peaks.combine_igg.seacr_filtered.csv"
         )
 
-        seacr_comb_igg
+        WRITE_CSV_SEACR_COMB_IGG(
+            seacr_comb_igg
                 .map {
                     it -> it[0] + [seacr_igg: "${params.seacr_comb_igg_dir}/${it[1]?.name ?: ' '}"]
                 }
-                .collect()
-                .set{seacr_comb_igg}
-        WRITE_CSV_SEACR_COMB_IGG(
-            seacr_comb_igg,
-                "peaks.combine_igg.seacr_igg.csv"
+                .collect(),
+            "peaks.combine_igg.seacr_igg.csv"
+        )
+
+    }
+
+    if (params.run_peak_qc && params.workflow == "cutandrun" ){
+        WRITE_CSV_CONP(
+            conp_bed
+                .flatMap { key, values ->
+                values.collect { value -> tuple(key, value) }
+                }
+                .map {
+                it -> [ target: it[0], conp_bed: "${params.conp_dir}/${it[1]?.name ?: ' '}"]
+                }
+                .collect(),
+            "consensus_peaks.individual_igg.csv"
+        )
+
+        WRITE_CSV_CONP_COMB_IGG(
+            conp_bed_comb_igg
+                .flatMap { key, values ->
+                values.collect { value -> tuple(key, value) }
+                }
+                .map {
+                it -> [ target: it[0], conp_bed: "${params.conp_comb_igg_dir}/${it[1]?.name ?: ' '}"]
+                }
+                .collect(),
+            "consensus_peaks.combined_igg.csv"
         )
 
     }

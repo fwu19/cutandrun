@@ -7,6 +7,8 @@ include { BIGWIG_AVERAGE                            } from "../../modules/local2
 include { BIGWIG_AVERAGE as BIGWIG_AVERAGE_IGG      } from "../../modules/local2/bigwig_average"
 include { TORNADO_PLOTS                             } from "../../modules/local2/tornado_plots"
 include { UPDATE_PEAKS                              } from "../../modules/local2/update_peaks"
+include { TORNADO_PLOTS  as TORNADO_PLOTS_COMB_IGG              } from "../../modules/local2/tornado_plots"
+include { UPDATE_PEAKS as UPDATE_PEAKS_COMB_IGG                 } from "../../modules/local2/update_peaks"
 
 workflow SUMMARY_PLOTS {
     take:
@@ -14,9 +16,12 @@ workflow SUMMARY_PLOTS {
     ch_conp_bed       // [ target, path(conp) ]
     ch_conp_ann       // [ target, path(conp) ]
     ch_dp
+    ch_conp_bed_comb_igg
+    ch_conp_ann_comb_igg
+    ch_dp_comb_igg
+    use_igg
     gene_gtf
     gene_bed
-    average_igg
 
     main:
     ch_versions = Channel.empty()
@@ -43,7 +48,12 @@ workflow SUMMARY_PLOTS {
     )
     ch_versions = ch_versions.mix(BIGWIG_AVERAGE.out.versions)
 
-    if (average_igg){
+
+    ch_avg_bigwig = BIGWIG_AVERAGE.out.bigwig
+    // EXAMPLE CHANNEL STRUCT: [[META], BAM, BAI]
+    //ch_bedgraph_dedup | view
+
+    if ('individual' in use_igg){
         BIGWIG_AVERAGE_IGG(
             ch_bigwig
             .filter { it[0].is_control == true }
@@ -52,39 +62,62 @@ workflow SUMMARY_PLOTS {
         // [[sample_group, target], Bigwig1, Bigwig2, ...]
         )
         ch_versions = ch_versions.mix(BIGWIG_AVERAGE_IGG.out.versions)
-    }
 
-    ch_avg_bigwig = BIGWIG_AVERAGE.out.bigwig
-    // EXAMPLE CHANNEL STRUCT: [[META], BAM, BAI]
-    //ch_bedgraph_dedup | view
+        /*
+        * Update peak bed files by adding peak annotation, differential peaks and so on
+        */
+        UPDATE_PEAKS(
+            ch_conp_bed.collect{it[1]},
+            ch_conp_ann.collect(),
+            ch_dp
+        )
+        ch_versions = ch_versions.mix(UPDATE_PEAKS.out.versions)
 
-    /*
-    * Update peak bed files by adding peak annotation, differential peaks and so on
-    */
-    UPDATE_PEAKS(
-        ch_conp_bed.collect{it[1]},
-        ch_conp_ann.collect{it[1]},
-        ch_dp
-    )
-    ch_versions = ch_versions.mix(UPDATE_PEAKS.out.versions)
-
-    /*
-    * tornado plots for each antibody
-    */
-    TORNADO_PLOTS(
-        ch_conp_bed
+        /*
+        * tornado plots for each antibody
+        */
+        TORNADO_PLOTS(
+            ch_conp_bed
             .cross (
                 ch_avg_bigwig
                     .map { it -> [ it[0][1], it[1] ] }
                     .groupTuple()
             )
             .map { it -> [ it[1][0], it[1][1], it[0][1] ] }, // [ val(target), [bigwig], [conp_bed] ]
-        gene_bed
-    )
-    ch_versions = ch_versions.mix(TORNADO_PLOTS.out.versions)
+            gene_bed
+        )
+        ch_versions = ch_versions.mix(TORNADO_PLOTS.out.versions)
 
+    }
+
+    if ([ 'group', 'all', 'custom' ].any { it in use_igg }){
+        /*
+        * Update peak bed files by adding peak annotation, differential peaks and so on
+        */
+        UPDATE_PEAKS_COMB_IGG(
+            ch_conp_bed_comb_igg.collect{it[1]},
+            ch_conp_ann_comb_igg.collect(),
+            ch_dp_comb_igg
+        )
+        ch_versions = ch_versions.mix(UPDATE_PEAKS_COMB_IGG.out.versions)
+
+        /*
+        * tornado plots for each antibody
+        */
+        TORNADO_PLOTS_COMB_IGG(
+            ch_conp_bed_comb_igg
+            .cross (
+                ch_avg_bigwig
+                    .map { it -> [ it[0][1], it[1] ] }
+                    .groupTuple()
+            )
+            .map { it -> [ it[1][0], it[1][1], it[0][1] ] }, // [ val(target), [bigwig], [conp_bed] ]
+            gene_bed
+        )
+        ch_versions = ch_versions.mix(TORNADO_PLOTS_COMB_IGG.out.versions)
+
+    }
 
     emit:
-    bigwig = ch_avg_bigwig        // channel: [ val(group), [ bedgraph ] ]
     versions = ch_versions                      // channel: [ versions.yml ]
 }
